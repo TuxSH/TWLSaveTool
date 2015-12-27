@@ -1,23 +1,5 @@
-/*
- *  TWLSaveTool is a Nintendo DS save backup tool for the Nintendo 3DS.
- *  Copyright (C) 2015 TuxSH
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/
- */
-
-
 #include <cstdio>
+#include <cstring>
 
 extern "C"{
 #include <sys/stat.h>
@@ -25,7 +7,8 @@ extern "C"{
 }
 
 #include "TWLCard.h"
-
+#include "games.h"
+#include <3ds/console.h>
 
 
 // Fix compile error. This should be properly initialized if you fiddle with the title stuff!
@@ -40,10 +23,11 @@ extern "C"
 		// Initialize services
 		srvInit();
 		aptInit();
-		gfxInit(GSP_RGB565_OES, GSP_RGB565_OES, false);
+		gfxInitDefault();
 		hidInit();
 		fsInit();
 		sdmcInit();
+		consoleInit(GFX_TOP, NULL);
 	}
 
 	void __appExit()
@@ -61,88 +45,144 @@ extern "C"
 
 using namespace TWLCard;
 
+void updateProgressBar(u64 offset, u64 total){
+	const int nbBars = 40;
+	std::string bar(nbBars*offset/total, '#');
+	
+	bar += std::string(nbBars - nbBars*offset/total, '-');
+	
+	PrintConsole* csl = consoleGetDefault(); 
+	std::string centerPadding((49 - (nbBars + 5 + csl->tabSize))/2, ' ');
+	
+	printf("\r%s[%s]\t%2d%%", centerPadding.c_str(), bar.c_str(), (int)(100*offset/total));
+	fflush(stdout);
+}
+
+std::string sizeToStr(u64 sz){
+	char buf[50];
+	if(sz < 1024)
+		sprintf(buf, "%llu B", sz);
+	else if(sz < (1 << 20))
+		sprintf(buf, "%llu KB", sz >> 10);
+	else sprintf(buf, "%llu MB", sz >> 20);
+	
+	return std::string(buf);
+}
+
+u64 selectSaveFileSize(u64 initialValue){
+	int pos = std::distance(validSizes, std::find(validSizes, validSizes + 7, initialValue));
+	std::string filler(49, ' ');
+	
+	while(aptMainLoop()){
+		printf("\rSave file size (L/R = -/+, A = confirm): %s", sizeToStr(validSizes[pos]).c_str());
+		fflush(stdout);
+		hidScanInput();
+		
+		if(hidKeysDown() & (KEY_L | KEY_R)){
+			printf("\r%s", filler.c_str()); // clears the current line
+			fflush(stdout);
+			
+			if(hidKeysDown() & KEY_L) pos = (7 + pos - 1)%7; // because of how modulus works in C ...
+			else if(hidKeysDown() & KEY_R) pos = (pos + 1)%7;
+		}
+
+		else if(hidKeysDown() & KEY_A) break;
+	}
+	printf("\n");
+	return validSizes[pos];
+}
+
 int main()
 {
+restart:
+
 	mkdir("sdmc:/TWLSaveTool", 0777);
 	chdir("sdmc:/TWLSaveTool");
+	
 	bool once = false;
 	u64 saveSz = 0;
 	Header h;
+	u8* data = NULL;
 	
-	consoleInit(GFX_TOP, NULL);
-	printf("TWLSaveTool 0.1a by TuxSH\n\n\n");
+	consoleClear();
+	printf("\x1b[1m\x1b[0;12HTWLSaveTool v0.1a by TuxSH\x1B[0m\n\n\n");
 	
 	try {
 		bool isTWL = isCardTWL();
 		if(isTWL) {
 			h = getHeader();
 			saveSz = getSaveFileSize();
-			printf("Game title: %s\nGame code: %s\nMaker code: %s\n", h.gameTitle.c_str(), h.gameCode.c_str(), h.makerCode.c_str());
-			
-			if(saveSz < 1024) printf("Save file size: %llu B\n", saveSz);
-			else printf("Save file size: %llu KB\n", saveSz >> 10);
-			
-			printf("(A) Read save file\n(Y) Write save file\n(HOME) Exit\n(file name used: %s.sav)\n\n", h.gameTitle.c_str());
+			printf("Game title:\t%s\nCode name: %s\n", h.gameTitle.c_str(), h.generateCodeName().c_str());
+			printf("Possible save file size:\t%s\n", sizeToStr(saveSz).c_str());
+			//printf("SPI size:\t%s\n", sizeToStr(getSPISize()).c_str());
+			printf("(A)\tRead save file\n(Y)\tWrite save file\n(B)\tExit\n(SELECT)\tRestart\n(file name used: %s.sav)\n\n", h.gameTitle.c_str());
 		}
 		
 		else{
 			once = true;
-			printf("Please insert a valid NDS game card!\n");
+			printf("\x1B[31mPlease insert a valid NDS game card!\x1B[0m\n");
 		}
 	}
 	catch(Error const& e){
-		printf("An error occured: error code %x\n", e.getErrorCode());
+		printf("\x1B[31mAn error occured: error code %x (%s, line %d)\x1B[0m\n", e.getErrorCode(), e.getFileName(), e.getLine());
 	}
 	catch(std::exception const& e){
-		printf("An error occured: %s\n", e.what());
+		printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());
 	}
-
+	
 	
 	std::string fileName = h.gameTitle + ".sav";
-	u8* data = new u8[(size_t) saveSz];
 	FILE* f = NULL;
 	
 	while(aptMainLoop()) {
 		hidScanInput();
+		auto keys = hidKeysDown(); 
+		
+		if(!once && (keys & (KEY_A | KEY_Y))) {
+			saveSz = selectSaveFileSize(saveSz);
 
-		if(!once) {
-			if(hidKeysDown() & KEY_A){
-				
+			data = new u8[(size_t) saveSz];
+			printf("\n");
+			if(keys & KEY_A){
 				try{
 					f = fopen(fileName.c_str(), "rb");
 					if(f != NULL){
 						fclose(f);
-						printf("Error: file %s already exists\n", fileName.c_str());
-						goto end;
+						printf("\x1B[33mFile %s already exists.\nOverwrite (A = yes, B = no)?\x1B[0m\n", fileName.c_str());
+						while(aptMainLoop()){
+							hidScanInput();
+							if(hidKeysDown() & KEY_A) break;
+							else if(hidKeysDown() & KEY_B) goto end;
+						}
 					}
 					
 					f = fopen(fileName.c_str(), "wb+");
 					if(f == NULL){
-						printf("Error: cannot create file %s\n", fileName.c_str());
+						printf("\x1B[31mError: cannot create file %s\x1B[0m\n", fileName.c_str());
 						goto end;
 					} 
-					printf("Please wait...\n");
-					readSaveFile(data, saveSz);
+					printf("Reading save file...\n\n");
+					readSaveFile(data, saveSz, updateProgressBar);
+					printf("\n");
 					fwrite(data, 1, saveSz, f);
 					fclose(f);
 				}
 				catch(Error const& e){
-					printf("An error occured: error code %x\n", e.getErrorCode());
+					printf("\x1B[31mAn error occured: error code %x (%s, line %d)\x1B[0m\n", e.getErrorCode(), e.getFileName(), e.getLine());
 					fclose(f);
 				}
 				catch(std::exception const& e){
-					printf("An error occured: %s\n", e.what());
+					printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());
 					fclose(f);
 				}
 			}
 			
 			
-			else if(hidKeysDown() & KEY_Y){
-
+			else if(keys & KEY_Y){
 				try{
 					f = fopen(fileName.c_str(), "rb");
 					if(f == NULL){
-						printf("Error: cannot open file %s\n", fileName.c_str());
+						printf("\x1B[31mError: cannot open file %s\x1B[0m\n", fileName.c_str());
 						goto end;
 					}
 					fseek(f, 0, SEEK_END);
@@ -150,27 +190,39 @@ int main()
 					rewind(f);
 					
 					if(sz != saveSz){
-						printf("Error: incorrect file size\n");
+						printf("\x1B[31mError: incorrect file size\x1B[0m\n");
 					}
 					
-					printf("Please wait...\n");					
+					printf("Writing save file...\n\n");					
 					fread(data, 1, saveSz, f);
 
-					writeToSaveFile(data, saveSz);
+					writeToSaveFile(data, saveSz, updateProgressBar);
+					printf("\n");
 					fclose(f);
 				}
 				catch(Error const& e){
-					printf("An error occured: error code %x\n", e.getErrorCode());
+					printf("\x1B[31mAn error occured: error code %x (%s, line %d)\x1B[0m\n", e.getErrorCode(), e.getFileName(), e.getLine());
 					fclose(f);
 				}
 				catch(std::exception const& e){
-					printf("An error occured: %s\n", e.what());
+					printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());
 					fclose(f);
 				}
 			}
+			
+			
 		end: 
 			once = true;
-			printf("Done.\n");
+			printf("\nDone.\nPress B to exit, SELECT to restart.\n");
+		}
+		
+		if(keys & KEY_B) break;
+		else if(keys & KEY_SELECT){
+			gfxFlushBuffers();
+			gfxSwapBuffers();
+			gspWaitForVBlank();
+			delete[] data;
+			goto restart;
 		}
 
 		gfxFlushBuffers();

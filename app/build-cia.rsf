@@ -1,7 +1,7 @@
 BasicInfo:
-  Title                   : "TSVT"
+  Title                   : "TWLSaveTool"
   CompanyCode             : "00"
-  ProductCode             : "CTR-N-TSVT"
+  ProductCode             : "TWLSaveTool"
   ContentType             : Application # Application / SystemUpdate / Manual / Child / Trial
   Logo                    : Nintendo # Nintendo / Licensed / Distributed / iQue / iQueForSystem
 
@@ -23,7 +23,7 @@ CardInfo:
 Option:
   UseOnSD                 : true # true if App is to be installed to SD
   EnableCompress          : true # Compresses exefs code
-  FreeProductCode         : false # Removes limitations on ProductCode
+  FreeProductCode         : true # Removes limitations on ProductCode
   EnableCrypt             : false # Enables encryption for NCCH and CIA
   MediaFootPadding        : false # If true CCI files are created with padding
 
