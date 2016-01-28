@@ -35,7 +35,6 @@ AccessControlInfo:
    - TwlCardBackup
    
   IoAccessControl:
-   - FsMountCardSpi
    - UseCardSpi
    
   IdealProcessor                : 0
@@ -62,7 +61,7 @@ AccessControlInfo:
   ReleaseKernelMinor            : "33" 
   MemoryType                    : Application # Application / System / Base
   HandleTableSize: 512
-  IORegisterMapping: 
+  IORegisterMapping:
    - 1ff50000-1ff57fff
    - 1ff70000-1ff77fff
   MemoryMapping: 
@@ -126,6 +125,7 @@ AccessControlInfo:
    - fs:USER
    - gsp::Gpu
    - hid:USER
+   - pxi:dev
   
    
 SystemControlInfo:

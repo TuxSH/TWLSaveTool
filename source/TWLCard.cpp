@@ -1,95 +1,151 @@
+/*
+ *  This file is part of TWLSaveTool.
+ *  Copyright (C) 2015-2016 TuxSH
+ *
+ *  TWLSaveTool is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/
+ */
+
 #include "TWLCard.h"
 
-#include "games.h"
+TWLCard::Header::Header(u8* data) {
+	if(data == NULL) return;
+	char in1[13] = {0}, in2[5] = {0}, in3[3] = {0};
+	
+	std::copy(data, data + 12, in1);
+	std::copy(data + 12, data + 16, in2);
+	std::copy(data + 16, data + 18, in3);
+	
+	gameTitle = std::string(in1);
+	gameCode = std::string(in2);
+	makerCode = std::string(in3);
+	isTWL = (data[0x12] & 0x2) != 0;
+}
 
-const int validSizes[7] = { 512, 8192, 65536, 262144, 524288, 1048576, 8388608 };
+bool TWLCard::isTWL(void) const {
+	return twl;
+}
 
-#define __FILE__ "TWLCard.cpp"
-namespace TWLCard {
-	Header::Header(u8* data) {
-		if(data == NULL) return;
-		char in1[13] = {0}, in2[5] = {0}, in3[3] = {0};
-		
-		std::copy(data, data + 12, in1);
-		std::copy(data + 12, data + 16, in2);
-		std::copy(data + 16, data + 18, in3);
-		
-		gameTitle = std::string(in1);
-		gameCode = std::string(in2);
-		makerCode = std::string(in3);
-		isTWL = (data[0x12] & 0x2) != 0;
-	}
-	
-	std::string Header::generateCodeName(void) const {
-		using std::string;
-		string first = (isTWL) ? string("TWL") : string("NTR");
-		return first + string("-") + gameCode + string("-") + makerCode;
-	}
-	
-	
-	bool isCardTWL(void) {
-		FS_CardType t;
-		Result res = FSUSER_GetCardType(&t);
-		if(res != 0) throw Error(res,__FILE__, __LINE__);
-		return t == CARD_TWL;
-	}
-	
-	Header getHeader(void) {
-		u8* data = new u8[0x3b4];
-		Result res = FSUSER_GetLegacyRomHeader(MEDIATYPE_GAME_CARD, 0LL, data);
-		if(res != 0) throw Error(res,__FILE__, __LINE__);
-		Header ret(data);
-		delete[] data;
-		return ret;
-	}
-	
-	Handle openSaveFile(u32 openFlags) {
-		Handle f;
-		Result res =  FSUSER_OpenFileDirectly(&f, (FS_Archive){ARCHIVE_CARD_SPIFS, fsMakePath(PATH_EMPTY, NULL)}, 
-											  fsMakePath(PATH_UTF16, L"/"), openFlags, 0);
-		
-		if(res != 0) throw Error(res,__FILE__, __LINE__);
-		return f;
-	}
-	
-	void closeSaveFile(Handle f) {
-		Result res = FSFILE_Close(f);
-		if(res != 0) throw Error(res,__FILE__, __LINE__);
-	}
-	
-	u64 getSaveFileSize(void) {
-		int sz = 0;
-		u8* buf = new u8[512];
-		u8* buf2 = new u8[512];
-		
-		Handle f;
-		u32 bytesRead;
-		if(FSUSER_OpenFileDirectly(&f, (FS_Archive){ARCHIVE_CARD_SPIFS, fsMakePath(PATH_EMPTY, NULL)}, 
-											  fsMakePath(PATH_UTF16, L"/"), FS_OPEN_READ, 0) != 0) goto end1;
-		
-		
-		if(FSFILE_Read(f, &bytesRead, 0LL, buf, 512) != 0 || bytesRead != 512) goto end;
+TWLCard::Header TWLCard::cardHeader(void) const {
+	return h;
+}
 
-		for(int offset : validSizes){
-			if(FSFILE_Read(f, &bytesRead, offset, buf2, 512) != 0 || bytesRead != 512) goto end;
-			if(std::equal(buf, buf+512, buf2)){
-				sz = offset;
-				break;
-			}
-		}
-		end: FSFILE_Close(f); 
-		end1:
-		delete[] buf;
-		delete[] buf2;
-		return (u64) sz;
+u32 TWLCard::saveSize(void) const {
+	return SPIGetCapacity(cardType_);
+}
+
+CardType TWLCard::cardType(void) const {
+	return cardType_;
+}
+
+std::string TWLCard::generateFileName(void) const {
+	std::string name(h.gameTitle);
+	
+	for(int i = 0; i < name.size(); ++i) {
+		if(!( (name[i] >= 'A' && name[i] <= 'Z') || (name[i] >= 'a' && name[i] <= 'z') || (name[i] >= '0' && name[i] <= '9') || name[i] == ' '))
+			name[i] = '_';
 	}
 	
-	u64 getSPISize(void){
-		Handle f = openSaveFile(FS_OPEN_READ);
-		u64 sz;
-		Result res = FSFILE_GetSize(f, &sz);
-		if(res != 0) throw Error(res,__FILE__, __LINE__);
-		closeSaveFile(f);
-		return sz;
+	return name+".sav";
+}
+
+void TWLCard::backupSaveFile(u8* out, void (*cb)(u32, u32)) const {
+	u32 sz = saveSize();
+	u32 sectorSize = (sz < 0x10000) ? sz : 0x10000;
+	
+	cb(0, sz);
+	for(u32 i = 0; i < sz/sectorSize; ++i) {
+		Result res = SPIReadSaveData(cardType_, sectorSize*i, out + sectorSize*i, sectorSize);
+		if(res != 0) throw Error(res, __FILE__, __LINE__);
+		cb(sectorSize*(i+1), sz);
 	}
+}
+
+void TWLCard::restoreSaveFile(u8* in, void (*cb)(u32, u32)) const {
+	u32 sz = saveSize();
+	u32 pageSize = SPIGetPageSize(cardType_);
+	
+	cb(0, sz);
+	for(u32 i = 0; i < sz/pageSize; ++i){
+		Result res = SPIWriteSaveData(cardType_, pageSize*i, in + pageSize*i, pageSize);
+		if(res != 0) throw Error(res, __FILE__, __LINE__);
+		cb(pageSize*(i+1), sz);
+	}	
+}
+
+void TWLCard::eraseSaveData(void (*cb)(u32, u32)) const {
+	u32 pos;
+	u32 sz = SPIGetCapacity(cardType_);
+	Result res;
+	
+	cb(0, sz);
+
+	for(pos = 0; pos < sz; pos += 0x10000) {
+		res = SPIEraseSector(cardType_, pos);
+		if(res != 0) throw Error(res, __FILE__, __LINE__);
+		cb((sz < pos + 0x10000) ? sz : pos + 0x10000, sz);
+	}
+	
+	
+}
+
+void TWLCard::backupSaveFile(std::string const& filename, void (*cb)(u32, u32)) const {
+	FILE* f = fopen(filename.c_str(), "wb+");
+	if(f == NULL) throw std::runtime_error("cannot open file");
+	
+	u8* out = new u8[saveSize()];
+	try { backupSaveFile(out, cb); }
+	catch(Error const& e) {
+		delete[] out;
+		fclose(f);
+		throw e;
+	}
+	fwrite(out, saveSize(), 1, f);
+	fclose(f);
+	
+	delete[] out;
+}
+
+void TWLCard::restoreSaveFile(std::string const& filename, void (*cb)(u32, u32)) const {
+	FILE* f = fopen(filename.c_str(), "rb");
+	if(f == NULL) throw std::runtime_error("cannot open file");
+	
+	u8* in = new u8[saveSize()];
+	fread(in, saveSize(), 1, f);
+	fclose(f);
+	try { restoreSaveFile(in, cb); }
+	catch(Error const& e) {
+		delete[] in;
+		throw e;
+	}
+	
+	delete[] in;
+}
+
+TWLCard::TWLCard(void) : twl(false), h(Header()), cardType_(NO_CHIP) {
+	FS_CardType t;
+	Result res = FSUSER_GetCardType(&t);
+	if(res != 0) throw Error(res,__FILE__, __LINE__);
+	twl = t == CARD_TWL;
+	
+	if(!twl) return;
+	
+	u8* data = new u8[0x3b4];
+	res = FSUSER_GetLegacyRomHeader(MEDIATYPE_GAME_CARD, 0LL, data);
+	if(res != 0) { delete[] data; throw Error(res,__FILE__, __LINE__); }
+	h = Header(data);
+	delete[] data;
+	
+	res = SPIGetCardType(&cardType_, (h.gameCode[0] == 'I') ? 1 : 0); // automatic infrared chip detection often fails
+	if(res != 0) { throw Error(res,__FILE__, __LINE__); }
 }

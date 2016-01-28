@@ -1,76 +1,61 @@
+/*
+ *  This file is part of TWLSaveTool.
+ *  Copyright (C) 2015-2016 TuxSH
+ *
+ *  TWLSaveTool is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/
+ */
+
 #pragma once
 
 #include <3ds.h>
 #include <string>
 #include <utility>
 #include <algorithm>
+#include <cstdio>
 #include "errors.h"
+#include "SPI.h"
 
-extern const int validSizes[7];
-
-namespace TWLCard {
+class TWLCard{
+public:
 	struct Header {
 		std::string gameTitle, gameCode, makerCode;
 		bool isTWL; // "DSi enhanced"
 		
-		std::string generateCodeName(void) const;
 		Header(u8* data = NULL);
 	 };
 	 
-	bool isCardTWL(void);
-	Header getHeader(void);
+	std::string generateFileName(void) const;
+	bool isTWL(void) const;
+	Header cardHeader(void) const;
+	u32 saveSize(void) const;
+	CardType cardType(void) const;
 	
-	Handle openSaveFile(u32 openFlags);
-	void closeSaveFile(Handle f);
+	void backupSaveFile(u8* out, void (*cb)(u32, u32)) const;
+	void backupSaveFile(std::string const& filename, void (*cb)(u32, u32)) const;
 	
-	u64 getSaveFileSize(void);
-	u64 getSPISize(void);
+	void restoreSaveFile(u8* in, void (*cb)(u32, u32)) const;
+	void restoreSaveFile(std::string const& filename, void (*cb)(u32, u32)) const;	
+	 
+	void eraseSaveData(void (*cb)(u32, u32)) const;
+	
+	TWLCard(void);
+private:
+	bool twl;
+	Header h;
+	CardType cardType_;
+};
 
-	template<class CallbackT>
-	void readSaveFile(u8* out, u64 nb, CallbackT cb){
-		Handle f = openSaveFile(FS_OPEN_READ);
-		Result res;
-		
-		u32 bytesRead;
-		
-		u64 offset = 0;
-		u64 spiSize = getSPISize();
-		
-		for(offset = 0; offset < nb; offset += 512){
-			u64 expected = (nb-offset < 512) ? (nb-offset) : 512;
-			res = FSFILE_Read(f, &bytesRead, offset, out+offset, expected);
-			if(res != 0){ closeSaveFile(f); throw Error(res,__FILE__, __LINE__); }
-			if(expected != bytesRead) { closeSaveFile(f); throw std::runtime_error("too few bytes were read"); }
-			cb(offset, nb);
-		}
-		cb(nb,nb);
-		
-		closeSaveFile(f);
-	}
-	
-	template<class CallbackT>
-	void writeToSaveFile(u8* in, u64 nb, CallbackT cb){
-		Handle f = openSaveFile(FS_OPEN_WRITE);
-		Result res;
-		
-		u32 bytesWritten;
-		
-		u64 offset = 0;
-		
-		for(offset = 0; offset < nb; offset += 512){
-			u64 expected = (nb-offset < 512) ? (nb-offset) : 512;
-			res = FSFILE_Write(f, &bytesWritten, offset, in+offset, expected, FS_WRITE_FLUSH);
-			if(res != 0){ closeSaveFile(f); throw Error(res,__FILE__, __LINE__); }
-			if(expected != bytesWritten) { closeSaveFile(f); throw std::runtime_error("too few bytes were written"); }
-			cb(offset, nb);
-		}
-		
-		cb(nb, nb);
-		
-		closeSaveFile(f);
-	}
-	
- }
  
  
  
