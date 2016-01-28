@@ -125,7 +125,6 @@ Result SPIEnableWriting(CardType type) {
 	Result res = SPIWriteRead(type, &cmd, 1, &statusReg, 1, 0, 0);
 	
 	if(res) return res;
-	
 	cmd = SPI_CMD_RDSR;
 	
 	do{
@@ -351,6 +350,35 @@ Result SPIErase(CardType type) {
 	}
 	return 0;
 }*/
+
+
+// The following routine use code from savegame-manager:
+
+/*
+ * savegame_manager: a tool to backup and restore savegames from Nintendo
+ *  DS cartridges. Nintendo DS and all derivative names are trademarks
+ *  by Nintendo. EZFlash 3-in-1 is a trademark by EZFlash.
+ *
+ * auxspi.cpp: A thin reimplementation of the AUXSPI protocol
+ *   (high level functions)
+ *
+ * Copyright (C) Pokedoc (2010)
+ */
+/* 
+ * This program is free software; you can redistribute it and/or modify 
+ * it under the terms of the GNU General Public License as published by 
+ * the Free Software Foundation; either version 2 of the License, or 
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License 
+ * for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along 
+ * with this program; if not, write to the Free Software Foundation, Inc., 
+ * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ */
 
 Result SPIGetCardType(CardType* type, int infrared) {
 	u8 sr = 0;

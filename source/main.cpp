@@ -25,7 +25,6 @@ extern "C"{
 }
 
 #include "TWLCard.h"
-#include "games.h"
 #include <3ds/console.h>
 
 
@@ -117,7 +116,7 @@ restart:
 			
 			printf("Game title:\t%s\nGamecode: %s\n", h.gameTitle.c_str(), h.gameCode.c_str());
 			printf("Save file size:\t%s\n", sizeToStr(card->saveSize()).c_str());
-			printf("(L)\tBackup save file\n(R)\tRestore save file\n(X)\tErase save file\n(B)\tExit\n(SELECT)\tRestart\n(file name used: %s)\n\n", card->generateFileName());
+			printf("(L)\tBackup save file\n(R)\tRestore save file\n(X)\tErase save file\n(B)\tExit\n(SELECT)\tRestart\n(file name used: %s)\n\n", card->generateFileName().c_str());
 		}
 		
 		else{
