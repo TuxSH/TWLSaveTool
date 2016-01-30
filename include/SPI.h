@@ -13,7 +13,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
 #pragma once
@@ -45,19 +45,20 @@ extern "C" {
 Result pxiDevInit(void);
 void pxiDevExit(void);
 
+extern u8* fill_buf; 
 typedef enum {
 	NO_CHIP = -1,
-	EEPROM_512B = 0, // <- sure
-	EEPROM_8KB = 1, // <- sure
-	EEPROM_64KB = 2, // <- sure
+	EEPROM_512B = 0,
+	EEPROM_8KB = 1,
+	EEPROM_64KB = 2,
 	FLASH_256KB_1 = 3,
 	FLASH_256KB_2 = 4,
 	FLASH_512KB_1 = 5,
 	FLASH_512KB_2 = 6,
 	FLASH_1MB = 7,
-	FLASH_8MB = 8, // <- sure, can't restore savegames atm
-	FLASH_512KB_INFRARED = 9, // <- sure
-	FLASH_256KB_INFRARED = 10 // AFAIK only "Active Health with Carol Vorderman" has such a save memory
+	FLASH_8MB = 8, // <- can't restore savegames, and maybe not read them atm
+	FLASH_512KB_INFRARED = 9,
+	FLASH_256KB_INFRARED = 10 // AFAIK, only "Active Health with Carol Vorderman" has such a flash save memory
 } CardType;
 
 typedef enum {
@@ -67,10 +68,10 @@ typedef enum {
 typedef enum {
 	DEASSERT_NONE = 0, DEASSERT_BEFORE_WAIT = 1, DEASSERT_AFTER_WAIT = 2
 } DeassertType;
- 
+
 typedef struct __attribute__((packed)){
-	u8 baudRate:6; // 512kHz << baudRate
-	u8 busMode:2; // 0 = 1-bit, 1 = 4-bit 
+	FS_CardSpiBaudRate baudRate:6;
+	FS_CardSpiBusMode busMode:2; 
 } TransferOption;
 
 typedef struct  __attribute__((packed)) {

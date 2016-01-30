@@ -13,16 +13,18 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
 #include "SPI.h"
 #include <cstring>
-#include <cstdio>
+
 static Handle pxiDevHandle;
 static int pxiDevRefCount;
 
 // Deliberately written in C! (except for a few lines)
+
+u8* fill_buf = NULL;
 
 Result pxiDevInit(void) {
 	Result res;
@@ -94,7 +96,7 @@ Result PXIDEV_SPIMultiWriteRead(
 }
 
 Result SPIWriteRead(CardType type, void* cmd, u32 cmdSize, void* answer, u32 answerSize, void* data, u32 dataSize) {
-	TransferOption transferOp = { 3 }, transferOp2 = { 1 }; // Baudrate = 4MHz/1MHz
+	TransferOption transferOp = { BAUDRATE_4MHZ }, transferOp2 = { BAUDRATE_1MHZ };
 	WaitOperation waitOp = { WAIT_NONE };
 	
 	bool b = type == FLASH_512KB_INFRARED || type == FLASH_256KB_INFRARED;
@@ -122,9 +124,9 @@ Result SPIWaitWriteEnd(CardType type) {
 
 Result SPIEnableWriting(CardType type) {
 	u8 cmd = SPI_CMD_WREN, statusReg = 0;
-	Result res = SPIWriteRead(type, &cmd, 1, &statusReg, 1, 0, 0);
-	
-	if(res) return res;
+	Result res = SPIWriteRead(type, &cmd, 1, NULL, 0, 0, 0);
+
+	if(res || type == EEPROM_512B) return res; // Weird, but works (otherwise we're getting an infinite loop for that chip type).
 	cmd = SPI_CMD_RDSR;
 	
 	do{
@@ -187,7 +189,7 @@ Result SPIWriteSaveData(CardType type, u32 offset, void* data, u32 size) {
 		switch(type) {
 			case EEPROM_512B:
 				cmdSize = 2;
-				cmd[0] = (pos & 0x100) ? SPI_512B_EEPROM_CMD_WRHI : SPI_512B_EEPROM_CMD_WRLO;
+				cmd[0] = (pos >= 0x100) ? SPI_512B_EEPROM_CMD_WRHI : SPI_512B_EEPROM_CMD_WRLO;
 				cmd[1] = (u8) pos;
 				break;
 			case EEPROM_8KB:
@@ -220,7 +222,7 @@ Result SPIWriteSaveData(CardType type, u32 offset, void* data, u32 size) {
 				cmd[3] = (u8) pos;
 				break;
 			case FLASH_8MB:
-				return 0xC8E13404; // writing is unsupported
+				return 0xC8E13404; // writing is unsupported (so is reading? need to test)
 			default:
 				return 0; // never happens
 		}
@@ -255,16 +257,16 @@ Result _SPIReadSaveData_512B_impl(u32 pos, void* data, u32 size) {
 		Result res = SPIWriteRead(EEPROM_512B, cmd, cmdSize, data, len, NULL, 0);
 		if(res) return res;
 		
-		read += len; 
+		read += len;
 	}
 	
 	if(end >= 0x100) {
 		u32 len = end - 0x100;
 
 		cmd[0] = SPI_512B_EEPROM_CMD_RDHI;
-		cmd[1] = (u8) pos;
+		cmd[1] = (u8)(pos + read);
 		
-		Result res = SPIWriteRead(EEPROM_512B, cmd, cmdSize, data, len, NULL, 0);
+		Result res = SPIWriteRead(EEPROM_512B, cmd, cmdSize, (void*)((u8*)data + read), len, NULL, 0);
 
 		if(res) return res;
 	}
@@ -285,8 +287,7 @@ Result SPIReadSaveData(CardType type, u32 offset, void* data, u32 size) {
 	u32 pos = offset;
 	switch(type) {
 		case EEPROM_512B:
-			res = _SPIReadSaveData_512B_impl(offset, data, size);
-			return res;
+			return _SPIReadSaveData_512B_impl(offset, data, size);
 			break;
 		case EEPROM_8KB:
 		case EEPROM_64KB:
@@ -312,44 +313,33 @@ Result SPIReadSaveData(CardType type, u32 offset, void* data, u32 size) {
 	}
 	
 	return SPIWriteRead(type, cmd, cmdSize, data, size, NULL, 0);
-
 }
 
 Result SPIEraseSector(CardType type, u32 offset) {
-	u8 cmd[4] = { SPI_FLASH_CMD_SE, (u8)(offset >> 16), (u8)(offset >> 8), (u8) offset };
+	u8 cmd[4] = {  SPI_FLASH_CMD_SE, (u8)(offset >> 16), (u8)(offset >> 8), (u8) offset };
 	if(type == NO_CHIP || type == FLASH_8MB) return 0xC8E13404;
+	
+	if(type < FLASH_256KB_1 && fill_buf == NULL) { 
+			fill_buf = new u8[0x10000];
+			memset(fill_buf, 0xff, 0x10000);
+	}
 	
 	Result res = SPIWaitWriteEnd(type);
 	
-	if((int)type >= 3) {
-		//printf("Erasing at 0x%lx\n", offset);
+	if(type >= FLASH_256KB_1) {
 		if( (res = SPIEnableWriting(type)) ) return res;
 		if( (res = SPIWriteRead(type, cmd, 4, NULL, 0, NULL, 0)) ) return res;
 		if( (res = SPIWaitWriteEnd(type)) ) return res;
 	}
 	// Simulate the same behavior on EEPROM chips.
-	// Since a sector = 0x10000 bytes, it will erase it completely (as there is no known EEPROM chip whose capacity is higher than that size.
+	// Since a sector = 0x10000 bytes, it will erase it completely (as there is no known EEPROM chip whose capacity is higher than that size).
 	else {
 		u32 sz = SPIGetCapacity(type);
-		u8* buf = new u8[sz];
-		memset(buf, 0xff, sz);
-		Result res = SPIWriteSaveData(type, 0, buf, sz);
-		delete[] buf;
+		Result res = SPIWriteSaveData(type, 0, fill_buf, sz);
 		return res;
 	}
 	return 0;
 }
-/*
-Result SPIErase(CardType type) { 
-	u32 pos;
-	u32 sz = SPIGetCapacity(type);
-	Result res;
-	for(pos = 0; pos < sz; pos += 0x10000) {
-		res = SPIEraseSector(type, pos);
-		if(res) return res;
-	}
-	return 0;
-}*/
 
 
 // The following routine use code from savegame-manager:
@@ -388,7 +378,7 @@ Result SPIGetCardType(CardType* type, int infrared) {
 	Result res; 
 	u32 jedecOrderedList[] = { 0x204012, 0x621600, 0x204013, 0x621100, 0x204014, 0x202017};
 	
-	u32 maxTries = (infrared == -1) ? 2 : 1;
+	u32 maxTries = (infrared == -1) ? 2 : 1; // note: infrared = -1 fails 1/3 of the time
 	while(tries < maxTries){ 
 		res = SPIReadJEDECIDAndStatusReg(t, &jedec, &sr); // dummy
 		if(res) return res;
@@ -397,7 +387,7 @@ Result SPIGetCardType(CardType* type, int infrared) {
 		if ((sr & 0xfd) == 0xF0 && (jedec == 0x00ffffff)) { t = EEPROM_512B; break; }
 		if ((sr & 0xfd) == 0x00 && (jedec == 0x00ffffff)) { t = EEPROM_64KB; break; }
 		
-		tries++;
+		++tries;
 		t = FLASH_512KB_INFRARED;
 	}
 	
@@ -422,7 +412,7 @@ Result SPIGetCardType(CardType* type, int infrared) {
 		res = SPIWriteSaveData(t, offset0, &buf1, 1);
 		if(res) return res;
 		
-		if(buf4!=buf2)      //      +8k
+		if(buf4!=buf2)      //        +8k
 			t = EEPROM_8KB;  //       8KB(64kbit)
 		else
 			t = EEPROM_64KB; //      64KB(512kbit)

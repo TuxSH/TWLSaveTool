@@ -13,7 +13,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
 #include <cstdio>
@@ -24,8 +24,8 @@ extern "C"{
 #include <unistd.h>
 }
 
-#include "TWLCard.h"
 #include <3ds/console.h>
+#include "TWLCard.h"
 
 
 // Fix compile error. This should be properly initialized if you fiddle with the title stuff!
@@ -33,10 +33,8 @@ u8 sysLang = 0;
 
 
 // Override the default service init/exit functions
-extern "C"
-{
-	void __appInit()
-	{
+extern "C" {
+	void __appInit() {
 		// Initialize services
 		srvInit();
 		aptInit();
@@ -48,8 +46,7 @@ extern "C"
 		consoleInit(GFX_TOP, NULL);
 	}
 
-	void __appExit()
-	{
+	void __appExit() {
 		// Exit services
 		pxiDevExit();
 		sdmcExit();
@@ -61,7 +58,7 @@ extern "C"
 	}
 }
 
-void updateProgressBar(u32 offset, u32 total){
+void updateProgressBar(u32 offset, u32 total) {
 	const int nbBars = 40;
 	std::string bar(nbBars*offset/total, '#');
 	
@@ -74,7 +71,7 @@ void updateProgressBar(u32 offset, u32 total){
 	fflush(stdout);
 }
 
-std::string sizeToStr(u32 sz){
+std::string sizeToStr(u32 sz) {
 	char buf[50];
 	if(sz < 1024)
 		sprintf(buf, "%lu B", sz);
@@ -85,152 +82,75 @@ std::string sizeToStr(u32 sz){
 	return std::string(buf);
 }
 
-int main()
-{
+#define HANDLE_ERRORS()\
+catch(Error const& e){\
+	e.describe();\
+	once = true;\
+	goto end_error;\
+}\
+catch(std::exception const& e){\
+	printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());\
+	once = true;\
+	goto end_error;\
+}
+
+int main() {
 restart:
 
 	mkdir("sdmc:/TWLSaveTool", 0777);
 	chdir("sdmc:/TWLSaveTool");
 	
-	bool once = false;
-	u64 saveSz = 0;
+	bool once = false, error_occured = false;
 	TWLCard::Header h;
-	u8* data = NULL;
+	TWLCard* card = NULL;
 	
 	consoleClear();
 	printf("\x1b[1m\x1b[0;12HTWLSaveTool 1.0 by TuxSH\x1B[0m\n\n\n");
 	
-	TWLCard* card = NULL;
 	try {
 		card = new TWLCard;
+
 		if(card->isTWL()) {
 			h = card->cardHeader();
-			u32 jedec = 0; u8 reg = 0;
-			CardType t = NO_CHIP;
-			SPIGetCardType(&t,(h.gameCode[0] == 'I') ? 1 : 0);
-			SPIReadJEDECIDAndStatusReg(t, &jedec, &reg);
-			printf("%lx\n", jedec); 
-			SPIReadJEDECIDAndStatusReg(t, &jedec, &reg);
-			printf("%lx\n", jedec); 
-
+			
+			if(card->cardType() == NO_CHIP) {
+				delete card;
+				card = NULL;
+				printf("\x1B[31mUnsupported save file type. It is possible that this game doesn't store any save data.\x1B[0m\n");
+				error_occured = true;
+			}
 			
 			printf("Game title:\t%s\nGamecode: %s\n", h.gameTitle.c_str(), h.gameCode.c_str());
 			printf("Save file size:\t%s\n", sizeToStr(card->saveSize()).c_str());
-			printf("(L)\tBackup save file\n(R)\tRestore save file\n(X)\tErase save file\n(B)\tExit\n(SELECT)\tRestart\n(file name used: %s)\n\n", card->generateFileName().c_str());
+			if(card->cardType() >= FLASH_256KB_1)
+				printf("JEDEC ID:\t0x%lx\n", card->JEDECID());
+			printf("\n(L)\tBackup save file\n(R)\tRestore save file\n(X)\tErase save file\n(B)\tExit\n(SELECT)\tRestart\n(file name used: %s)\n\n", card->generateFileName().c_str());
 		}
 		
 		else{
-			once = true;
 			delete card;
 			card = NULL;
 			printf("\x1B[31mPlease insert a valid NDS game card!\x1B[0m\n");
+			error_occured = true;
 		}
 	}
 	catch(Error const& e){
 		delete card;
 		card = NULL;
-		printf("\x1B[31mAn error occured: error code %lx (%s, line %d)\x1B[0m\n", e.getErrorCode(), e.getFileName(), e.getLine());
+		e.describe();
+		error_occured = true;
 	}
 	catch(std::exception const& e){
 		delete card;
 		card = NULL;
 		printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());
+		error_occured = true;
 	}
 	
-	
-	std::string fileName = card->generateFileName();
-	FILE* f = NULL;
-	
+		
 	while(aptMainLoop()) {
 		hidScanInput();
 		auto keys = hidKeysDown(); 
-		
-		if(!once && (keys & (KEY_L | KEY_R | KEY_X))) {
-			printf("\n");
-			if(keys & KEY_L){
-				try{
-					f = fopen(fileName.c_str(), "rb");
-					if(f != NULL){
-						fclose(f);
-						printf("\x1B[33mFile %s already exists.\nOverwrite (A = yes, B = no)?\x1B[0m\n", fileName.c_str());
-						while(aptMainLoop()){
-							hidScanInput();
-							if(hidKeysDown() & KEY_A) break;
-							else if(hidKeysDown() & KEY_B) goto end;
-						}
-					}
-					
-					printf("Reading save file...\n\n");
-					card->backupSaveFile(fileName, &updateProgressBar);
-					printf("\n");
-				}
-				catch(Error const& e){
-					printf("\x1B[31mAn error occured: error code %lx (%s, line %d)\x1B[0m\n", e.getErrorCode(), e.getFileName(), e.getLine());
-					fclose(f);
-				}
-				catch(std::exception const& e){
-					printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());
-					fclose(f);
-				}
-			}
-			
-			
-			else if(keys & KEY_R){
-				try{
-					f = fopen(fileName.c_str(), "rb");
-					if(f == NULL){
-						printf("\x1B[31mError: cannot open file %s\x1B[0m\n", fileName.c_str());
-						goto end;
-					}
-					fseek(f, 0, SEEK_END);
-					u32 sz = ftell(f);
-					fclose(f);
-					
-					if(sz != card->saveSize()){
-						printf("\x1B[31mError: incorrect file size\x1B[0m\n");
-					}
-					
-					printf("Writing save file...\n\n");					
-					card->restoreSaveFile(fileName, &updateProgressBar);
-					printf("\n");
-				}
-				catch(Error const& e){
-					printf("\x1B[31mAn error occured: error code %lx (%s, line %d)\x1B[0m\n", e.getErrorCode(), e.getFileName(), e.getLine());
-					fclose(f);
-				}
-				catch(std::exception const& e){
-					printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());
-					fclose(f);
-				}
-			}
-			
-			else if(keys & KEY_X){
-				try{
-					printf("\x1B[33mAre you REALLY sure you want to erase your save data? (A = yes, B = no)?\x1B[0m\n", fileName.c_str());
-					while(aptMainLoop()){
-						hidScanInput();
-						if(hidKeysDown() & KEY_A) break;
-						else if(hidKeysDown() & KEY_B) goto end;
-					}
-					printf("Erasing save data...\n\n");					
-					card->eraseSaveData(&updateProgressBar);
-					printf("\n");
-				}
-				catch(Error const& e){
-					printf("\x1B[31mAn error occured: error code %lx (%s, line %d)\x1B[0m\n", e.getErrorCode(), e.getFileName(), e.getLine());
-					fclose(f);
-				}
-				catch(std::exception const& e){
-					printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());
-					fclose(f);
-				}
-			}
-			
-			
-		end: 
-			once = true;
-			printf("\nDone.\nPress B to exit, SELECT to restart.\n");
-		}
 		
 		if(keys & KEY_B) break;
 		else if(keys & KEY_SELECT){
@@ -240,12 +160,99 @@ restart:
 			delete card; card = NULL;
 			goto restart;
 		}
+		
+		if(!once) { 
+			if(error_occured) {
+					once = true;
+					goto end_error;
+			}
+			if (keys & (KEY_L | KEY_R | KEY_X)) {
+					std::string fileName = card->generateFileName();
+					FILE* f = NULL;
+					printf("\n");
+					if(keys & KEY_L){
+						try{
+							f = fopen(fileName.c_str(), "rb");
+							if(f != NULL){
+								fclose(f);
+								printf("\x1B[33mFile %s already exists. Overwrite?\n\n(A) yes\t\t(B) no\x1B[0m\n", fileName.c_str());
+								while(aptMainLoop()){
+									hidScanInput();
+									if(hidKeysDown() & KEY_A) break;
+									else if(hidKeysDown() & KEY_B) goto end_error;
+								}
+							}
+							
+							printf("\nReading save file...\n\n");
+							fflush(stdout);
+							card->backupSaveFile(fileName, &updateProgressBar);
+							printf("\n");
+						}
+						HANDLE_ERRORS();
+					}
+					
+					
+					
+					else if(keys & KEY_R) {
+						try{
+							f = fopen(fileName.c_str(), "rb");
+							if(f == NULL){
+								printf("\x1B[31mError: cannot open file %s\x1B[0m\n", fileName.c_str());
+								goto end_error;
+							}
+							fseek(f, 0, SEEK_END);
+							u32 sz = ftell(f);
+							fclose(f);
+							
+							if(sz != card->saveSize()){
+								printf("\x1B[31mError: incorrect file size\x1B[0m\n");
+								goto end_error;
+							}
+							
+							printf("Writing save file...\n\n");
+							fflush(stdout);
+							card->restoreSaveFile(fileName, &updateProgressBar);
+							printf("\n");
+						}
+						HANDLE_ERRORS();
+					}
+					
+					else if(keys & KEY_X) {
+						try{
+							printf("\x1B[33mAre you REALLY sure you want to erase your save data?\n\n(A) yes\t\t(B) no\x1B[0m\n", fileName.c_str());
+							while(aptMainLoop()){
+								hidScanInput();
+								if(hidKeysDown() & KEY_A) break;
+								else if(hidKeysDown() & KEY_B) goto end;
+							}
+							printf("\nErasing save data...\n\n");
+							fflush(stdout);							
+							card->eraseSaveData(&updateProgressBar);
+							printf("\n");
+						}
+						HANDLE_ERRORS();
+					}
+					
+				end:
+					once = true;
+					printf("\nDone.\n");
+			}
+				
+			if(keys){
+				end_error:
+					once = true;
+					printf("Press B to exit, SELECT to restart.\n");
+			}
+		}
+			
+		
 
 		gfxFlushBuffers();
 		gfxSwapBuffers();
 		gspWaitForVBlank();
 	}
 	
+	if(fill_buf != NULL) delete[] fill_buf;
 	delete card;
 	return 0;
 }

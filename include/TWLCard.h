@@ -13,7 +13,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
 #pragma once
@@ -40,6 +40,7 @@ public:
 	Header cardHeader(void) const;
 	u32 saveSize(void) const;
 	CardType cardType(void) const;
+	u32 JEDECID(void) const;
 	
 	void backupSaveFile(u8* out, void (*cb)(u32, u32)) const;
 	void backupSaveFile(std::string const& filename, void (*cb)(u32, u32)) const;
@@ -54,6 +55,7 @@ private:
 	bool twl;
 	Header h;
 	CardType cardType_;
+	u32 jedec;
 };
 
  

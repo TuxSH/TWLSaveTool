@@ -13,7 +13,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
 #include "TWLCard.h"
@@ -46,6 +46,10 @@ u32 TWLCard::saveSize(void) const {
 
 CardType TWLCard::cardType(void) const {
 	return cardType_;
+}
+
+u32 TWLCard::JEDECID(void) const {
+	return jedec;
 }
 
 std::string TWLCard::generateFileName(void) const {
@@ -147,5 +151,9 @@ TWLCard::TWLCard(void) : twl(false), h(Header()), cardType_(NO_CHIP) {
 	delete[] data;
 	
 	res = SPIGetCardType(&cardType_, (h.gameCode[0] == 'I') ? 1 : 0); // automatic infrared chip detection often fails
+	if(res != 0) { throw Error(res,__FILE__, __LINE__); }
+	
+	u8 sr;
+	res = SPIReadJEDECIDAndStatusReg(cardType_, &jedec, &sr);
 	if(res != 0) { throw Error(res,__FILE__, __LINE__); }
 }
