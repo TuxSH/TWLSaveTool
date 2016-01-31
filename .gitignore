@@ -25,4 +25,25 @@
 # Executables
 *.exe
 *.out
+*.elf
 *.app
+*.cia
+*.3dsx
+*.smdh
+
+*.bnr
+
+TWLSaveTool
+TWLSaveTool-stripped
+
+# CMake
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Makefile
+cmake_install.cmake
+install_manifest.txt
+
+# Install directories
+CIA/*
+3ds/*

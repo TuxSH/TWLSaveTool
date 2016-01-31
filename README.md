@@ -1,2 +1,27 @@
 # TWLSaveTool
-A tool to backup/restore save files of NDS cards on a 3DS CFW. Not working atm.
+
+## Description
+TWLSaveTool is a 3DS homebrew that allows you to read, write, and erase save files from **NDS cartridges** (just like savegame-manager!)
+
+**The CIA build** requires your 3DS to be on firmware 9.2 or less. If it's the case, this is the best option; you'll be able to see the awesome banner Apache Thunder made :wink:.
+
+**The 3dsx build** requires you to have PokéTransporter installed on your 3DS. You'll need to pay a PokéBank license to *donwload* it.
+
+## Compatibility list
+**All games** except Band Brothers DX, Art Academy DS, and Pokémon Typing Adventure should be supported.
+
+## How to build
+Have CMake and devkitPro correctly installed and set up, as well as makerom and bannertool in devkitARM/bin, then run:
+```
+cmake -DCMAKE_TOOLCHAIN_FILE=DevkitArm3DS.cmake -DCIA=[ON or OFF] -G"Unix Makefiles" .
+make
+make install
+``` 
+
+## Special thanks
+I'm deeply grateful to:
+
+* Apache Thunder, for making the amazing banner and icon used by this homebrew
+* Steveice10, for having RE'd [PXIDEV:SPIMultiWriteRead](https://www.3dbrew.org/wiki/PXIDEV:SPIMultiWriteRead)
+* idgrepthat, for [pointing out that PokéTransporter was indeed using that function](https://github.com/TuxSH/TWLSaveTool/commit/388c9d86091d51d89363de80df5eaf44e0438dae#commitcomment-15494744)
+* Everyone else who helped

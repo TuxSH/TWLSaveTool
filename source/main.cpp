@@ -175,7 +175,7 @@ restart:
 							f = fopen(fileName.c_str(), "rb");
 							if(f != NULL){
 								fclose(f);
-								printf("\x1B[33mFile %s already exists. Overwrite?\n\n(A) yes\t\t(B) no\x1B[0m\n", fileName.c_str());
+								printf("\x1B[33mFile %s already exists. Overwrite?\n\n(A) Yes\t\t(B) No\x1B[0m\n", fileName.c_str());
 								while(aptMainLoop()){
 									hidScanInput();
 									if(hidKeysDown() & KEY_A) break;
@@ -219,7 +219,7 @@ restart:
 					
 					else if(keys & KEY_X) {
 						try{
-							printf("\x1B[33mAre you REALLY sure you want to erase your save data?\n\n(A) yes\t\t(B) no\x1B[0m\n", fileName.c_str());
+							printf("\x1B[33mAre you REALLY sure you want to erase your save data?\n\n(A) Yes\t\t(B) No\x1B[0m\n", fileName.c_str());
 							while(aptMainLoop()){
 								hidScanInput();
 								if(hidKeysDown() & KEY_A) break;

@@ -43,7 +43,7 @@ struct Error : public std::runtime_error {
 	
 	void describe(void) const throw(){
 		std::string fname(fileName);
-		fname = fname.substr(fname.find_last_of('/'));
+		fname = fname.substr(fname.find_last_of('/') + 1);
 		
 		printf("\x1B[31mAn error occured:\x1B[0m\n");
 		printf("\t\x1B[31m- Error code: %lx\x1B[0m\n", errorCode);
