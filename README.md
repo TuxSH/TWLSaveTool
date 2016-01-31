@@ -3,7 +3,7 @@
 ## Description
 TWLSaveTool is a 3DS homebrew that allows you to read, write, and erase save files from **NDS cartridges** (just like savegame-manager!)
 
-**The CIA build** requires your sysNAND to be on firmware 9.2 or less. If it's the case, this is the best option; you'll be able to see the awesome banner Apache Thunder made :wink:.
+**The CIA build** requires your sysNAND to be on firmware 9.2 or less (no restrictions for emuNAND). If it's the case, this is the best option; you'll be able to see the awesome banner Apache Thunder made :wink:.
 
 **The 3dsx build** requires you to have either PokéTransporter or Pokémon Dream Radar installed on your 3DS. In both cases you'll need to pay to be able to download them.
 
