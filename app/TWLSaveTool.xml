@@ -1,1 +1,4 @@
-<targets selectable="false"><title mediatype="1">00040000000C9C00</title></targets>
+<targets selectable="false">
+	<title mediatype="1">00040000000C9C00</title>
+	<title mediatype="1">00040000000AE100</title>
+</targets>
