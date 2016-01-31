@@ -105,7 +105,7 @@ restart:
 	TWLCard* card = NULL;
 	
 	consoleClear();
-	printf("\x1b[1m\x1b[0;12HTWLSaveTool 1.0 by TuxSH\x1B[0m\n\n\n");
+	printf("\x1b[1m\x1b[0;12HTWLSaveTool 1.1 by TuxSH\x1B[0m\n\n\n");
 	
 	try {
 		card = new TWLCard;
@@ -124,7 +124,7 @@ restart:
 			printf("Save file size:\t%s\n", sizeToStr(card->saveSize()).c_str());
 			if(card->cardType() >= FLASH_256KB_1)
 				printf("JEDEC ID:\t0x%lx\n", card->JEDECID());
-			printf("\n(L)\tBackup save file\n(R)\tRestore save file\n(X)\tErase save file\n(B)\tExit\n(SELECT)\tRestart\n(file name used: %s)\n\n", card->generateFileName().c_str());
+			printf("\n(B)\tBackup save file\n(A)\tRestore save file\n(X)\tErase save file\n(START)\tExit\n(Y)\tRestart\n(file name used: %s)\n\n", card->generateFileName().c_str());
 		}
 		
 		else{
@@ -152,8 +152,8 @@ restart:
 		hidScanInput();
 		auto keys = hidKeysDown(); 
 		
-		if(keys & KEY_B) break;
-		else if(keys & KEY_SELECT){
+		if(keys & KEY_START) break;
+		else if(keys & KEY_Y){
 			gfxFlushBuffers();
 			gfxSwapBuffers();
 			gspWaitForVBlank();
@@ -166,11 +166,11 @@ restart:
 					once = true;
 					goto end_error;
 			}
-			if (keys & (KEY_L | KEY_R | KEY_X)) {
+			if (keys & (KEY_B | KEY_A | KEY_X)) {
 					std::string fileName = card->generateFileName();
 					FILE* f = NULL;
 					printf("\n");
-					if(keys & KEY_L){
+					if(keys & KEY_B){
 						try{
 							f = fopen(fileName.c_str(), "rb");
 							if(f != NULL){
@@ -193,7 +193,7 @@ restart:
 					
 					
 					
-					else if(keys & KEY_R) {
+					else if(keys & KEY_A) {
 						try{
 							f = fopen(fileName.c_str(), "rb");
 							if(f == NULL){
@@ -241,7 +241,7 @@ restart:
 			if(keys){
 				end_error:
 					once = true;
-					printf("Press B to exit, SELECT to restart.\n");
+					printf("Press START to exit, Y to restart.\n");
 			}
 		}
 			
