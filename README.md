@@ -8,7 +8,7 @@ TWLSaveTool is a 3DS homebrew that allows you to read, write, and erase save fil
 **The 3dsx build** requires you to have either PokéTransporter or Pokémon Dream Radar installed on your 3DS. In both cases you'll need to pay to be able to download them.
 
 ## Compatibility list
-**All games** except Band Brothers DX, Art Academy DS, and Pokémon Typing Adventure should be supported.
+**All games** except WarioWare D.I.Y., Band Brothers DX, Art Academy DS, and Pokémon Typing Adventure should be supported.
 
 ## How to build
 Have CMake and devkitPro correctly installed and set up, as well as makerom and bannertool in devkitARM/bin, then run:
