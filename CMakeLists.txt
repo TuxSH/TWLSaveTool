@@ -29,7 +29,7 @@ if(CIA)
 	
 	install(FILES "${PROJECT_SOURCE_DIR}/TWLSaveTool.cia" DESTINATION "CIA/")
 else()
-	add_3dsx_target(TWLSaveTool "TWLSaveTool" "A tool to backup and restore save files from NDS cartridges (requires PokeTransporter)" "TuxSH" "${PROJECT_SOURCE_DIR}/app/IconLarge.png")
+	add_3dsx_target(TWLSaveTool "TWLSaveTool" "A tool to backup and restore save files from NDS cartridges (requires either PokeTransporter or Pokemon Dream Radar)" "TuxSH" "${PROJECT_SOURCE_DIR}/app/IconLarge.png")
 	
 	install(FILES "${PROJECT_SOURCE_DIR}/app/TWLSaveTool.xml" "${PROJECT_SOURCE_DIR}/TWLSaveTool.3dsx" "${PROJECT_SOURCE_DIR}/TWLSaveTool.smdh" 
 			DESTINATION "3ds/TWLSaveTool/")
