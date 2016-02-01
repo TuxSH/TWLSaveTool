@@ -55,7 +55,7 @@ u32 TWLCard::JEDECID(void) const {
 std::string TWLCard::generateFileName(void) const {
 	std::string name(h.gameTitle);
 	
-	for(int i = 0; i < name.size(); ++i) {
+	for(size_t i = 0; i < name.size(); ++i) {
 		if(!( (name[i] >= 'A' && name[i] <= 'Z') || (name[i] >= 'a' && name[i] <= 'z') || (name[i] >= '0' && name[i] <= '9') || name[i] == ' '))
 			name[i] = '_';
 	}
