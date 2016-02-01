@@ -11,11 +11,9 @@ TWLSaveTool is a 3DS homebrew that allows you to read, write, and erase save fil
 **All games** except WarioWare D.I.Y., Band Brothers DX, Art Academy DS, and Pokémon Typing Adventure should be supported.
 
 ## How to build
-Have CMake and devkitPro correctly installed and set up, as well as makerom and bannertool in devkitARM/bin, then run:
+Have libctru and devkitARM correctly installed and set up, as well as makerom and bannertool in an accessible path, then run:
 ```
-cmake -DCMAKE_TOOLCHAIN_FILE=DevkitArm3DS.cmake -DCIA=[ON or OFF] -G"Unix Makefiles" .
 make
-make install
 ``` 
 
 ## Special thanks
