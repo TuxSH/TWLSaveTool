@@ -33,6 +33,11 @@ SOURCES		:=	source
 DATA		:=	data
 INCLUDES	:=	include
 #ROMFS		:=	romfs
+APP_AUTHOR	:=	TusxSH
+ICON		:=	app/IconLarge.png
+BNR_IMAGE	:=  app/banner.cfgx
+BNR_AUDIO	:=	app/DSLite_BootSound.cwav
+RSF_FILE	:=	app/build-cia.rsf
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -126,7 +131,7 @@ ifneq ($(ROMFS),)
 	export _3DSXFLAGS += --romfs=$(CURDIR)/$(ROMFS)
 endif
 
-.PHONY: $(BUILD) clean all
+.PHONY: $(BUILD) clean all cia
 
 #---------------------------------------------------------------------------------
 all: $(BUILD)
@@ -141,6 +146,9 @@ clean:
 	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf
 
 
+cia: $(BUILD)
+
+
 #---------------------------------------------------------------------------------
 else
 
@@ -149,6 +157,8 @@ DEPENDS	:=	$(OFILES:.o=.d)
 #---------------------------------------------------------------------------------
 # main targets
 #---------------------------------------------------------------------------------
+all: $(OUTPUT).cia $(OUTPUT).3dsx
+
 ifeq ($(strip $(NO_SMDH)),)
 $(OUTPUT).3dsx	:	$(OUTPUT).elf $(OUTPUT).smdh
 else
@@ -156,6 +166,17 @@ $(OUTPUT).3dsx	:	$(OUTPUT).elf
 endif
 
 $(OUTPUT).elf	:	$(OFILES)
+
+$(OUTPUT).cia	:	$(OUTPUT).elf $(OUTPUT).smdh $(TARGET).bnr
+	@makerom	-f cia -target t -exefslogo -o $@ \
+				-elf $(OUTPUT).elf -rsf $(TOPDIR)/$(RSF_FILE) \
+				-banner $(TARGET).bnr \
+				-icon $(OUTPUT).smdh
+	@echo "built ... $(notdir $@)"
+
+$(TARGET).bnr	:	$(TOPDIR)/$(BNR_IMAGE) $(TOPDIR)/$(BNR_AUDIO)
+	@bannertool	makebanner -o $@ -ci $(TOPDIR)/$(BNR_IMAGE) -ca $(TOPDIR)/$(BNR_AUDIO)
+	@echo "built ... $@"
 
 #---------------------------------------------------------------------------------
 # you need a rule like this for each extension you use as binary data
