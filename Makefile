@@ -167,6 +167,10 @@ endif
 
 $(OUTPUT).elf	:	$(OFILES)
 
+$(OUTPUT).smdh	:	$(APP_ICON)
+	@bannertool makesmdh -s "$(APP_TITLE)" -l "$(APP_DESCRIPTION)"  -p "$(APP_AUTHOR)" -i $(APP_ICON) -o $@
+	@echo "built ... $(notdir $@)"
+
 $(OUTPUT).cia	:	$(OUTPUT).elf $(OUTPUT).smdh $(TARGET).bnr
 	@makerom	-f cia -target t -exefslogo -o $@ \
 				-elf $(OUTPUT).elf -rsf $(TOPDIR)/$(RSF_FILE) \
