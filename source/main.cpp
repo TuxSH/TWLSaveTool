@@ -22,9 +22,9 @@
 extern "C"{
 #include <sys/stat.h>
 #include <unistd.h>
+#include <3ds/console.h>
 }
 
-#include <3ds/console.h>
 #include "TWLCard.h"
 
 
@@ -219,7 +219,7 @@ restart:
 					
 					else if(keys & KEY_X) {
 						try{
-							printf("\x1B[33mAre you REALLY sure you want to erase your save data?\n\n(UP) Yes\t\t(DOWN) No\x1B[0m\n", fileName.c_str());
+							printf("\x1B[33mAre you REALLY sure you want to erase your save data?\n\n(UP) Yes\t\t(DOWN) No\x1B[0m\n");
 							while(aptMainLoop()){
 								hidScanInput();
 								if(hidKeysDown() & KEY_UP) break;
