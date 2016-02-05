@@ -143,11 +143,13 @@ Result SPIReadJEDECIDAndStatusReg(CardType type, u32* id, u8* statusReg) {
 	u8 idbuf[3] = { 0 };
 	u32 id_ = 0;
 	Result res = SPIWaitWriteEnd(type);
-	
 	if(res) return res;
+	
 	if((res = SPIWriteRead(type, &cmd, 1, idbuf, 3, 0, 0))) return res;
+	
 	id_ = (idbuf[0] << 16) | (idbuf[1] << 8) | idbuf[2];
 	cmd = SPI_CMD_RDSR;
+	
 	if((res = SPIWriteRead(type, &cmd, 1, &reg, 1, 0, 0))) return res;
 	
 	if(id) *id = id_;
@@ -157,16 +159,16 @@ Result SPIReadJEDECIDAndStatusReg(CardType type, u32* id, u8* statusReg) {
 }
 
 u32 SPIGetPageSize(CardType type) {
-	u32 EEPROMSizes[] = { 16, 32, 128 };
-	if(type == NO_CHIP || (int) type > 10) return 0;
-	else if((int) type <= 2) return EEPROMSizes[(int) type];
+	u32 EEPROMSizes[] = { 16, 32, 128, 256 };
+	if(type == NO_CHIP || type > CHIP_LAST) return 0;
+	else if(type < FLASH_256KB_1) return EEPROMSizes[(int) type];
 	else return 256;
 }
 
 u32 SPIGetCapacity(CardType type) {
-	u32 sz[] = { 9, 13, 16, 18, 18, 19, 19, 20, 23, 19, 19 };
+	u32 sz[] = { 9, 13, 16, 17, 18, 18, 19, 19, 20, 23, 19, 19 };
 	
-	if(type == NO_CHIP) return 0;
+	if(type == NO_CHIP || type > CHIP_LAST) return 0;
 	else return 1 << sz[(int) type];
 }
 
@@ -194,8 +196,9 @@ Result SPIWriteSaveData(CardType type, u32 offset, void* data, u32 size) {
 				break;
 			case EEPROM_8KB:
 			case EEPROM_64KB:
+			case EEPROM_128KB:
 				cmdSize = 3;
-				cmd[0] = SPI_CMD_PP;
+				cmd[0] = SPI_EEPROM_CMD_WRITE;
 				cmd[1] = (u8)(pos >> 8);
 				cmd[2] = (u8) pos;
 				break;
@@ -291,6 +294,7 @@ Result SPIReadSaveData(CardType type, u32 offset, void* data, u32 size) {
 			break;
 		case EEPROM_8KB:
 		case EEPROM_64KB:
+		case EEPROM_128KB:
 			cmdSize = 3;
 			cmd[1] = (u8)(pos >> 8);
 			cmd[2] = (u8) pos;
@@ -332,10 +336,9 @@ Result SPIEraseSector(CardType type, u32 offset) {
 		if( (res = SPIWaitWriteEnd(type)) ) return res;
 	}
 	// Simulate the same behavior on EEPROM chips.
-	// Since a sector = 0x10000 bytes, it will erase it completely (as there is no known EEPROM chip whose capacity is higher than that size).
 	else {
 		u32 sz = SPIGetCapacity(type);
-		Result res = SPIWriteSaveData(type, 0, fill_buf, sz);
+		Result res = SPIWriteSaveData(type, 0, fill_buf, (sz < 0x10000) ? sz : 0x10000);
 		return res;
 	}
 	return 0;
@@ -370,11 +373,34 @@ Result SPIEraseSector(CardType type, u32 offset) {
  * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+ 
+Result _SPIIsDataMirrored(CardType type, int size, bool* mirrored) {
+	u32 offset0 = (size-1);        //      n KB
+	u32 offset1 = (2*size-1);      //     2n KB
+	
+	u8 buf1;     //      +0k data        read -> write
+	u8 buf2;     //      +n k data        read -> read
+	u8 buf3;     //      +0k ~data          write
+	u8 buf4;     //      +n k data new    comp buf2
+	
+	Result res;
+	
+	if( (res = SPIReadSaveData(type, offset0, &buf1, 1)) ) return res;
+	if( (res = SPIReadSaveData(type, offset1, &buf2, 1)) ) return res;
+	buf3=~buf1;
+	if( (res = SPIWriteSaveData(type, offset0, &buf3, 1)) ) return res;
+	if( (res = SPIReadSaveData(type, offset1, &buf4, 1)) ) return res;
+	if( (res = SPIWriteSaveData(type, offset0, &buf1, 1)) ) return res;
+	
+	*mirrored = buf2 != buf4;
+	return 0;
+}
+
 Result SPIGetCardType(CardType* type, int infrared) {
 	u8 sr = 0;
 	u32 jedec = 0;
 	u32 tries = 0;
-	CardType t = (infrared == 1) ? FLASH_512KB_INFRARED : FLASH_512KB_1;
+	CardType t = (infrared == 1) ? FLASH_INFRARED_DUMMY : FLASH_STD_DUMMY;
 	Result res; 
 	u32 jedecOrderedList[] = { 0x204012, 0x621600, 0x204013, 0x621100, 0x204014, 0x202017};
 	
@@ -385,43 +411,29 @@ Result SPIGetCardType(CardType* type, int infrared) {
 		
 		if ((sr & 0xfd) == 0x00 && (jedec != 0x00ffffff)) { break; }		
 		if ((sr & 0xfd) == 0xF0 && (jedec == 0x00ffffff)) { t = EEPROM_512B; break; }
-		if ((sr & 0xfd) == 0x00 && (jedec == 0x00ffffff)) { t = EEPROM_64KB; break; }
+		if ((sr & 0xfd) == 0x00 && (jedec == 0x00ffffff)) { t = EEPROM_STD_DUMMY; break; }
 		
 		++tries;
-		t = FLASH_512KB_INFRARED;
+		t = FLASH_INFRARED_DUMMY;
 	}
 	
 	if(t == EEPROM_512B) { *type = t; return 0; }
-	else if(t == EEPROM_64KB) {
-		static const u32 offset0 = (8*1024-1);        //      8KB
-		static const u32 offset1 = (2*8*1024-1);      //      16KB
-		u8 buf1;     //      +0k data        read -> write
-		u8 buf2;     //      +8k data        read -> read
-		u8 buf3;     //      +0k ~data          write
-		u8 buf4;     //      +8k data new    comp buf2
+	else if(t == EEPROM_STD_DUMMY) {
+		bool mirrored = false;
 		
-		res = SPIReadSaveData(t, offset0, &buf1, 1);
-		if(res) return res;
-		res = SPIReadSaveData(t, offset1, &buf2, 1);
-		if(res) return res;	
-		buf3=~buf1;
-		res = SPIWriteSaveData(t, offset0, &buf3, 1);
-		if(res) return res;
-		res = SPIReadSaveData(t, offset1, &buf4, 1);
-		if(res) return res;
-		res = SPIWriteSaveData(t, offset0, &buf1, 1);
-		if(res) return res;
-		
-		if(buf4!=buf2)      //        +8k
-			t = EEPROM_8KB;  //       8KB(64kbit)
-		else
-			t = EEPROM_64KB; //      64KB(512kbit)
+		if( (res = _SPIIsDataMirrored(t, 8192, &mirrored)) ) return res;
+		if(mirrored) t = EEPROM_8KB;
+		else{
+			if( (res = _SPIIsDataMirrored(t, 65536, &mirrored)) ) return res;
+			if(mirrored) t = EEPROM_64KB;
+			else t = EEPROM_128KB;
+		}
 		
 		*type = t;
 		return 0;
 	}
 	
-	else if(t == FLASH_512KB_INFRARED) {
+	else if(t == FLASH_INFRARED_DUMMY) {
 		if(infrared == 0) *type = NO_CHIP; // did anything go wrong?
 		
 		if(jedec == jedecOrderedList[0] || jedec == jedecOrderedList[1]) *type = FLASH_256KB_INFRARED;
@@ -437,7 +449,7 @@ Result SPIGetCardType(CardType* type, int infrared) {
 		int i;
 		
 		for(i = 0; i < 6; ++i) {
-			if(jedec == jedecOrderedList[i]) { *type = (CardType)(3 + i); return 0; }  
+			if(jedec == jedecOrderedList[i]) { *type = (CardType)((int) FLASH_256KB_1 + i); return 0; }  
 		}
 		
 		*type = NO_CHIP;

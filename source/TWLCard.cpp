@@ -52,15 +52,16 @@ u32 TWLCard::JEDECID(void) const {
 	return jedec;
 }
 
-std::string TWLCard::generateFileName(void) const {
+std::string TWLCard::generateFileName(u8 n) const {
 	std::string name(h.gameTitle);
-	
+	char buf[50]={0}; // dirty
+	sprintf(buf, "%d", (unsigned int) n);
 	for(size_t i = 0; i < name.size(); ++i) {
 		if(!( (name[i] >= 'A' && name[i] <= 'Z') || (name[i] >= 'a' && name[i] <= 'z') || (name[i] >= '0' && name[i] <= '9') || name[i] == ' '))
 			name[i] = '_';
 	}
 	
-	return name+".sav";
+	return name+"."+std::string(buf)+".sav";
 }
 
 void TWLCard::backupSaveFile(u8* out, void (*cb)(u32, u32)) const {

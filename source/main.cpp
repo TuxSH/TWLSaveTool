@@ -64,13 +64,12 @@ void updateProgressBar(u32 offset, u32 total) {
 	
 	bar += std::string(nbBars - nbBars*offset/total, '-');
 	
-	PrintConsole* csl = consoleGetDefault(); 
-	std::string centerPadding((49 - (nbBars + 5 + csl->tabSize))/2, ' ');
+	printf("\r[%s]\t%d%%", bar.c_str(), (int)(100*offset/total));
 	
-	printf("\r%s[%s]\t%2d%%", centerPadding.c_str(), bar.c_str(), (int)(100*offset/total));
-	fflush(stdout);
+	gfxFlushBuffers();
+	gfxSwapBuffers();
 }
-
+	
 std::string sizeToStr(u32 sz) {
 	char buf[50];
 	if(sz < 1024)
@@ -94,19 +93,21 @@ catch(std::exception const& e){\
 	goto end_error;\
 }
 
-int main() {
-restart:
 
+int main(void) {
 	mkdir("sdmc:/TWLSaveTool", 0777);
 	chdir("sdmc:/TWLSaveTool");
-	
+restart:
+
+	u8 fileNumber = 0;
+
 	bool once = false, error_occured = false;
 	TWLCard::Header h;
 	TWLCard* card = NULL;
-	
 	consoleClear();
+
 	printf("\x1b[1m\x1b[0;12HTWLSaveTool 1.1 by TuxSH\x1B[0m\n\n\n");
-	
+
 	try {
 		card = new TWLCard;
 
@@ -120,11 +121,14 @@ restart:
 				error_occured = true;
 			}
 			
-			printf("Game title:\t%s\nGamecode: %s\n", h.gameTitle.c_str(), h.gameCode.c_str());
+			printf("Game title:\t\t\t%s\nGamecode:\t\t\t%s\n", h.gameTitle.c_str(), h.gameCode.c_str());
 			printf("Save file size:\t%s\n", sizeToStr(card->saveSize()).c_str());
 			if(card->cardType() >= FLASH_256KB_1)
-				printf("JEDEC ID:\t0x%lx\n", card->JEDECID());
-			printf("\n(B)\tBackup save file\n(A)\tRestore save file\n(X)\tErase save file\n(START)\tExit\n(Y)\tRestart\n(file name used: %s)\n\n", card->generateFileName().c_str());
+				printf("JEDEC ID:\t\t\t0x%lx\n", card->JEDECID());
+			printf("\n(B)\t\t\t\tBackup save file\n(A)\t\t\t\tRestore save file\n(X)\t\t\t\tErase save file\n");
+			printf("(START)\t\t\tExit\n(Y)\t\t\t\tRestart\n");
+			printf("(LEFT/RIGHT)\tChange file name\n");
+			printf("Current save file name: %s", card->generateFileName(fileNumber).c_str());
 		}
 		
 		else{
@@ -153,12 +157,18 @@ restart:
 		auto keys = hidKeysDown(); 
 		
 		if(keys & KEY_START) break;
-		else if(keys & KEY_Y){
+		else if(keys & KEY_Y){	
+		//	delete card; card = NULL;
 			gfxFlushBuffers();
 			gfxSwapBuffers();
 			gspWaitForVBlank();
-			delete card; card = NULL;
 			goto restart;
+		}
+		else if(keys & (KEY_LEFT | KEY_RIGHT)){
+			if(keys & KEY_LEFT) --fileNumber;
+			else if(keys & KEY_RIGHT) ++fileNumber;
+			printf("\rCurrent save file name: %s   ", card->generateFileName(fileNumber).c_str());
+			goto flush_buffers;
 		}
 		
 		if(!once) { 
@@ -167,9 +177,10 @@ restart:
 					goto end_error;
 			}
 			if (keys & (KEY_B | KEY_A | KEY_X)) {
-					std::string fileName = card->generateFileName();
+					std::string fileName = card->generateFileName(fileNumber);
 					FILE* f = NULL;
-					printf("\n");
+					printf("\n\n\n");
+					
 					if(keys & KEY_B){
 						try{
 							f = fopen(fileName.c_str(), "rb");
@@ -184,7 +195,6 @@ restart:
 							}
 							
 							printf("\nReading save file...\n\n");
-							fflush(stdout);
 							card->backupSaveFile(fileName, &updateProgressBar);
 							printf("\n");
 						}
@@ -209,8 +219,7 @@ restart:
 								goto end_error;
 							}
 							
-							printf("Writing save file...\n\n");
-							fflush(stdout);
+							printf("\nWriting save file...\n\n");
 							card->restoreSaveFile(fileName, &updateProgressBar);
 							printf("\n");
 						}
@@ -226,7 +235,6 @@ restart:
 								else if(hidKeysDown() & KEY_DOWN) goto end;
 							}
 							printf("\nErasing save data...\n\n");
-							fflush(stdout);							
 							card->eraseSaveData(&updateProgressBar);
 							printf("\n");
 						}
@@ -237,16 +245,14 @@ restart:
 					once = true;
 					printf("\nDone.\n");
 			}
-				
-			if(keys){
-				end_error:
-					once = true;
-					printf("Press START to exit, Y to restart.\n");
-			}
+			else goto flush_buffers;	
+		end_error:
+			once = true;
+			printf("Press START to exit, Y to restart.\n");
 		}
 			
 		
-
+flush_buffers:
 		gfxFlushBuffers();
 		gfxSwapBuffers();
 		gspWaitForVBlank();

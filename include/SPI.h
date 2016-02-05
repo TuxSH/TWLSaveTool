@@ -31,9 +31,11 @@ extern "C" {
 #define SPI_512B_EEPROM_CMD_RDLO 3
 #define SPI_512B_EEPROM_CMD_RDHI 11
 
-#define SPI_CMD_PP 2
+#define SPI_EEPROM_CMD_WRITE 2 
+
 #define SPI_CMD_READ 3
 
+#define SPI_CMD_PP 2
 #define SPI_FLASH_CMD_PW 10
 #define SPI_FLASH_CMD_RDID 0x9f
 #define SPI_FLASH_CMD_SE 0xd8
@@ -48,17 +50,27 @@ void pxiDevExit(void);
 extern u8* fill_buf; 
 typedef enum {
 	NO_CHIP = -1,
+	
 	EEPROM_512B = 0,
+	
 	EEPROM_8KB = 1,
 	EEPROM_64KB = 2,
-	FLASH_256KB_1 = 3,
-	FLASH_256KB_2 = 4,
-	FLASH_512KB_1 = 5,
-	FLASH_512KB_2 = 6,
-	FLASH_1MB = 7,
-	FLASH_8MB = 8, // <- can't restore savegames, and maybe not read them atm
-	FLASH_512KB_INFRARED = 9,
-	FLASH_256KB_INFRARED = 10 // AFAIK, only "Active Health with Carol Vorderman" has such a flash save memory
+	EEPROM_128KB = 3,
+	EEPROM_STD_DUMMY = 1,
+	
+	FLASH_256KB_1 = 4,
+	FLASH_256KB_2 = 5,
+	FLASH_512KB_1 = 6,
+	FLASH_512KB_2 = 7,
+	FLASH_1MB = 8,
+	FLASH_8MB = 9, // <- can't restore savegames, and maybe not read them atm
+	FLASH_STD_DUMMY = 4,
+	
+	FLASH_512KB_INFRARED = 10,
+	FLASH_256KB_INFRARED = 11, // AFAIK, only "Active Health with Carol Vorderman" has such a flash save memory
+	FLASH_INFRARED_DUMMY = 9,
+	
+	CHIP_LAST = 11,
 } CardType;
 
 typedef enum {

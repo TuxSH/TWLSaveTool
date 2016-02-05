@@ -35,7 +35,7 @@ public:
 		Header(u8* data = NULL);
 	 };
 	 
-	std::string generateFileName(void) const;
+	std::string generateFileName(u8 n) const;
 	bool isTWL(void) const;
 	Header cardHeader(void) const;
 	u32 saveSize(void) const;
