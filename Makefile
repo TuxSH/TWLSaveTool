@@ -34,6 +34,7 @@ DATA		:=	data
 INCLUDES	:=	include
 #ROMFS		:=	romfs
 APP_AUTHOR	:=	TuxSH
+APP_TITLE	:= 	TWLSaveTool
 APP_DESCRIPTION :=  A tool to backup and restore save files from NDS cartridges (requires either PokeTransporter or Pokemon Dream Radar)
 ICON		:=	app/IconLarge.png
 BNR_IMAGE	:=  app/banner.cfgx
@@ -183,11 +184,15 @@ $(OUTPUT).smdh	:	$(APP_ICON)
 	@bannertool makesmdh -s "$(APP_TITLE)" -l "$(APP_DESCRIPTION)"  -p "$(APP_AUTHOR)" -i $(APP_ICON) -o $@
 	@echo "built ... $(notdir $@)"
 
-$(OUTPUT).cia	:	$(OUTPUT).elf $(OUTPUT).smdh $(TARGET).bnr
+$(OUTPUT).cia.smdh	:	$(APP_ICON)
+	@bannertool makesmdh -s "$(APP_TITLE)" -l "$(APP_TITLE)"  -p "$(APP_AUTHOR)" -i $(APP_ICON) -o $@
+	@echo "built ... $(notdir $@)"
+	
+$(OUTPUT).cia	:	$(OUTPUT).elf $(OUTPUT).cia.smdh $(TARGET).bnr
 	@makerom	-f cia -target t -exefslogo -o $@ \
 				-elf $(OUTPUT).elf -rsf $(TOPDIR)/$(RSF_FILE) \
 				-banner $(TARGET).bnr \
-				-icon $(OUTPUT).smdh
+				-icon $(OUTPUT).cia.smdh
 	@echo "built ... $(notdir $@)"
 
 $(TARGET).bnr	:	$(TOPDIR)/$(BNR_IMAGE) $(TOPDIR)/$(BNR_AUDIO)
