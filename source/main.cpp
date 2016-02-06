@@ -93,12 +93,24 @@ catch(std::exception const& e){\
 	goto end_error;\
 }
 
+#define HANDLE_INIT_ERRORS(ctor_exception)\
+catch(Error const& e){\
+	if(!(ctor_exception)) delete card;\
+	card = NULL;\
+	e.describe();\
+	error_occured = true;\
+}\
+catch(std::exception const& e){\
+	if(!(ctor_exception)) delete card;\
+	card = NULL;\
+	printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());\
+	error_occured = true;\
+}
 
 int main(void) {
 	mkdir("sdmc:/TWLSaveTool", 0777);
 	chdir("sdmc:/TWLSaveTool");
 restart:
-
 	u8 fileNumber = 0;
 
 	bool once = false, error_occured = false;
@@ -108,9 +120,12 @@ restart:
 
 	printf("\x1b[1m\x1b[0;12HTWLSaveTool 1.1 by TuxSH\x1B[0m\n\n\n");
 
+	try { card = new TWLCard; }
+	HANDLE_INIT_ERRORS(true)
+	
+	if(error_occured) goto main_loop;
+	
 	try {
-		card = new TWLCard;
-
 		if(card->isTWL()) {
 			h = card->cardHeader();
 			
@@ -131,40 +146,30 @@ restart:
 			printf("Current save file name: %s", card->generateFileName(fileNumber).c_str());
 		}
 		
-		else{
+		else {
 			delete card;
 			card = NULL;
 			printf("\x1B[31mPlease insert a valid NDS game card!\x1B[0m\n");
 			error_occured = true;
 		}
 	}
-	catch(Error const& e){
-		delete card;
-		card = NULL;
-		e.describe();
-		error_occured = true;
-	}
-	catch(std::exception const& e){
-		delete card;
-		card = NULL;
-		printf("\x1B[31mAn error occured: %s\x1B[0m\n", e.what());
-		error_occured = true;
-	}
+	HANDLE_INIT_ERRORS(false)
 	
-		
+main_loop:	
 	while(aptMainLoop()) {
 		hidScanInput();
 		auto keys = hidKeysDown(); 
 		
 		if(keys & KEY_START) break;
-		else if(keys & KEY_Y){	
-		//	delete card; card = NULL;
+		else if(keys & KEY_Y) {	
 			gfxFlushBuffers();
 			gfxSwapBuffers();
 			gspWaitForVBlank();
+			delete card; 
+			card = NULL;
 			goto restart;
 		}
-		else if(keys & (KEY_LEFT | KEY_RIGHT)){
+		else if(keys & (KEY_LEFT | KEY_RIGHT)) {
 			if(keys & KEY_LEFT) --fileNumber;
 			else if(keys & KEY_RIGHT) ++fileNumber;
 			printf("\rCurrent save file name: %s   ", card->generateFileName(fileNumber).c_str());
@@ -172,16 +177,13 @@ restart:
 		}
 		
 		if(!once) { 
-			if(error_occured) {
-					once = true;
-					goto end_error;
-			}
+			if(error_occured) goto end_error;
 			if (keys & (KEY_B | KEY_A | KEY_X)) {
 					std::string fileName = card->generateFileName(fileNumber);
 					FILE* f = NULL;
 					printf("\n\n\n");
 					
-					if(keys & KEY_B){
+					if(keys & KEY_B) {
 						try{
 							f = fopen(fileName.c_str(), "rb");
 							if(f != NULL){
@@ -198,7 +200,7 @@ restart:
 							card->backupSaveFile(fileName, &updateProgressBar);
 							printf("\n");
 						}
-						HANDLE_ERRORS();
+						HANDLE_ERRORS()
 					}
 					
 					
@@ -223,7 +225,7 @@ restart:
 							card->restoreSaveFile(fileName, &updateProgressBar);
 							printf("\n");
 						}
-						HANDLE_ERRORS();
+						HANDLE_ERRORS()
 					}
 					
 					else if(keys & KEY_X) {
@@ -238,7 +240,7 @@ restart:
 							card->eraseSaveData(&updateProgressBar);
 							printf("\n");
 						}
-						HANDLE_ERRORS();
+						HANDLE_ERRORS()
 					}
 					
 				end:
