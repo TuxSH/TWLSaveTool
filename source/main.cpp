@@ -108,13 +108,13 @@ catch(std::exception const& e){\
 }
 
 int main(void) {
+restart:
 	mkdir("sdmc:/TWLSaveTool", 0777);
 	chdir("sdmc:/TWLSaveTool");
-restart:
+	
 	u8 fileNumber = 0;
 
 	bool once = false, error_occured = false;
-	TWLCard::Header h;
 	TWLCard* card = NULL;
 	consoleClear();
 
@@ -126,9 +126,7 @@ restart:
 	if(error_occured) goto main_loop;
 	
 	try {
-		if(card->isTWL()) {
-			h = card->cardHeader();
-			
+		if(card->isTWL()) {			
 			if(card->cardType() == NO_CHIP) {
 				delete card;
 				card = NULL;
@@ -136,7 +134,7 @@ restart:
 				error_occured = true;
 			}
 			
-			printf("Game title:\t\t\t%s\nGamecode:\t\t\t%s\n", h.gameTitle.c_str(), h.gameCode.c_str());
+			printf("Game title:\t\t\t%s\nGamecode:\t\t\t%s\n", card->cardHeader().gameTitle.c_str(), card->cardHeader().gameCode.c_str());
 			printf("Save file size:\t%s\n", sizeToStr(card->saveSize()).c_str());
 			if(card->cardType() >= FLASH_256KB_1)
 				printf("JEDEC ID:\t\t\t0x%lx\n", card->JEDECID());
@@ -178,6 +176,7 @@ main_loop:
 		
 		if(!once) { 
 			if(error_occured) goto end_error;
+
 			if (keys & (KEY_B | KEY_A | KEY_X)) {
 					std::string fileName = card->generateFileName(fileNumber);
 					FILE* f = NULL;
