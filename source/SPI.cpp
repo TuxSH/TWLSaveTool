@@ -19,95 +19,24 @@
 #include "SPI.h"
 #include <cstring>
 
-static Handle pxiDevHandle;
-static int pxiDevRefCount;
-
 // Deliberately written in C! (except for a few lines)
 
 u8* fill_buf = NULL;
 
-Result pxiDevInit(void) {
-	Result res;
-	if (AtomicPostIncrement(&pxiDevRefCount)) return 0;
-	res = srvGetServiceHandle(&pxiDevHandle, "pxi:dev");
-	if (R_FAILED(res)) AtomicDecrement(&pxiDevRefCount);
-	return res;
-}
-
-void pxiDevExit(void) {
-	if (AtomicDecrement(&pxiDevRefCount)) return;
-	svcCloseHandle(pxiDevHandle);
-}
-
-typedef union {
-	u8 asU8;
-	TransferOption asTrOp;
-} Conv1;
-
-typedef union {
-	u64 asU64;
-	WaitOperation asWaitOp;
-} Conv2;
-
-Result PXIDEV_SPIMultiWriteRead(
-	u64 header, u32 headerSize, TransferOption headerTransferOption, WaitOperation headerWaitOperation,
-	void* writeBuffer1, u32 wb1Size, TransferOption wb1TransferOption, WaitOperation wb1WaitOperation,
-	void* readBuffer1, u32 rb1Size, TransferOption rb1TransferOption, WaitOperation rb1WaitOperation,
-	void* writeBuffer2, u32 wb2Size, TransferOption wb2TransferOption, WaitOperation wb2WaitOperation,
-	void* readBuffer2, u32 rb2Size, TransferOption rb2TransferOption, WaitOperation rb2WaitOperation,
-	u64 footer, u32 footerSize, TransferOption footerTransferOption
-) {
-	
-	Result ret = 0;
-	u32 *cmdbuf = getThreadCommandBuffer();
-	
-	cmdbuf[0] = 0xd0688;
-	
-	Conv1 c1;
-	Conv2 c2;
-	
-#define PACK_HEADER_FOOTER(what, where)\
-	*(u64*)(cmdbuf + where) = what;\
-	cmdbuf[where + 2] = what##Size;\
-	c1.asTrOp = what##TransferOption; cmdbuf[where + 3] = (u32) c1.asU8;\
-
-#define PACK_BUFFER(lg, sh, type, n, cst)\
-	cmdbuf[27 + 4*type + 2*n] = (sh##Size << 8) | cst;\
-	cmdbuf[28 + 4*type + 2*n] = (u32) lg;\
-	cmdbuf[7 + 4*type + 8*n] = sh##Size;\
-	c1.asTrOp = sh##TransferOption; cmdbuf[8 + 4*type + 8*n] = (u32) c1.asU8;\
-	c2.asWaitOp = sh##WaitOperation; *(u64*)(cmdbuf + 9 + 4*type + 8*n) = c2.asU64;
-	
-	PACK_HEADER_FOOTER(header, 1);
-	c2.asWaitOp = headerWaitOperation; *(u64*)(cmdbuf + 5) = c2.asU64;
-	
-	PACK_BUFFER(writeBuffer1, wb1, 0, 0, 0x06);
-	PACK_BUFFER(readBuffer1, rb1, 1, 0, 0x24);
-	PACK_BUFFER(writeBuffer2, wb2, 0, 1, 0x16);
-	PACK_BUFFER(readBuffer2, rb2, 1, 1, 0x34);
-	
-	PACK_HEADER_FOOTER(footer, 23);
-	
-#undef PACK_HEADER_FOOTER
-#undef PACK_BUFFER
-
-	if(R_FAILED(ret = svcSendSyncRequest(pxiDevHandle))) return ret;
-	return (Result)cmdbuf[1];
-}
-
 Result SPIWriteRead(CardType type, void* cmd, u32 cmdSize, void* answer, u32 answerSize, void* data, u32 dataSize) {
-	TransferOption transferOp = { BAUDRATE_4MHZ }, transferOp2 = { BAUDRATE_1MHZ };
-	WaitOperation waitOp = { WAIT_NONE };
-	
+	u8 transferOp = pxiDevMakeTransferOption(BAUDRATE_4MHZ, BUSMODE_1BIT), transferOp2 = pxiDevMakeTransferOption(BAUDRATE_1MHZ, BUSMODE_1BIT);
+	u64 waitOp = pxiDevMakeWaitOperation(WAIT_NONE, DEASSERT_NONE, 0LL);
+	u64 headerFooterVal = 0;
 	bool b = type == FLASH_512KB_INFRARED || type == FLASH_256KB_INFRARED;
-	return PXIDEV_SPIMultiWriteRead(
-		0LL, (b) ? 1 : 0, (b) ? transferOp2 : transferOp, waitOp, // header
-		cmd, cmdSize, transferOp, waitOp,
-		answer, answerSize, transferOp, waitOp,
-		data, dataSize, transferOp, waitOp,
-		NULL, 0, transferOp, waitOp,
-		0LL, 0, transferOp // footer
-	);
+
+	PXIDEV_SPIBuffer headerBuffer = { &headerFooterVal, (b) ? 1U : 0U, (b) ? transferOp2 : transferOp, waitOp };
+	PXIDEV_SPIBuffer cmdBuffer = { cmd, cmdSize, transferOp, waitOp };
+	PXIDEV_SPIBuffer answerBuffer = { answer, answerSize, transferOp, waitOp };
+	PXIDEV_SPIBuffer dataBuffer = { data, dataSize, transferOp, waitOp };
+	PXIDEV_SPIBuffer nullBuffer = { NULL, 0U, transferOp, waitOp };	
+	PXIDEV_SPIBuffer footerBuffer = { &headerFooterVal, 0U, transferOp, waitOp };
+	
+	return PXIDEV_SPIMultiWriteRead(&headerBuffer, &cmdBuffer, &answerBuffer, &dataBuffer, &nullBuffer, &footerBuffer);
 }
 
 Result SPIWaitWriteEnd(CardType type) {
@@ -197,10 +126,11 @@ Result SPIWriteSaveData(CardType type, u32 offset, void* data, u32 size) {
 			case EEPROM_8KB:
 			case EEPROM_64KB:
 			case EEPROM_128KB:
-				cmdSize = 3;
+				cmdSize = 4;
 				cmd[0] = SPI_EEPROM_CMD_WRITE;
-				cmd[1] = (u8)(pos >> 8);
-				cmd[2] = (u8) pos;
+				cmd[1] = (u8)(pos >> 16);
+				cmd[2] = (u8)(pos >> 8);
+				cmd[3] = (u8) pos;
 				break;
 			case FLASH_256KB_1:
 			/*	
@@ -295,9 +225,10 @@ Result SPIReadSaveData(CardType type, u32 offset, void* data, u32 size) {
 		case EEPROM_8KB:
 		case EEPROM_64KB:
 		case EEPROM_128KB:
-			cmdSize = 3;
-			cmd[1] = (u8)(pos >> 8);
-			cmd[2] = (u8) pos;
+			cmdSize = 4;
+			cmd[1] = (u8)(pos >> 16);
+			cmd[2] = (u8)(pos >> 8);
+			cmd[3] = (u8) pos;
 			break;
 		case FLASH_256KB_1:
 		case FLASH_256KB_2:

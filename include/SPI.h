@@ -44,9 +44,6 @@ extern "C" {
 #define SPI_FLG_WIP 1
 #define SPI_FLG_WEL 2
 
-Result pxiDevInit(void);
-void pxiDevExit(void);
-
 extern u8* fill_buf; 
 typedef enum {
 	NO_CHIP = -1,
@@ -72,36 +69,6 @@ typedef enum {
 	
 	CHIP_LAST = 11,
 } CardType;
-
-typedef enum {
-	WAIT_NONE = 0, WAIT_SLEEP = 1, WAIT_IREQ_RETURN = 2, WAIT_IREQ_CONTINUE = 3
-} WaitType;
-
-typedef enum {
-	DEASSERT_NONE = 0, DEASSERT_BEFORE_WAIT = 1, DEASSERT_AFTER_WAIT = 2
-} DeassertType;
-
-typedef struct __attribute__((packed)){
-	FS_CardSpiBaudRate baudRate:6;
-	FS_CardSpiBusMode busMode:2; 
-} TransferOption;
-
-typedef struct  __attribute__((packed)) {
-	WaitType wait:4;
-	DeassertType deassert:4;
-	u64 duration: 60; // ns
-} WaitOperation;
-
-// Longest signature ever!
-
-Result PXIDEV_SPIMultiWriteRead(
-	u64 header, u32 headerSize, TransferOption headerTransferOption, WaitOperation headerWaitOperation,
-	void* writeBuffer1, u32 wb1Size, TransferOption wb1TransferOption, WaitOperation wb1WaitOperation,
-	void* readBuffer1, u32 rb1Size, TransferOption rb1TransferOption, WaitOperation rb1WaitOperation,
-	void* writeBuffer2, u32 wb2Size, TransferOption wb2TransferOption, WaitOperation wb2WaitOperation,
-	void* readBuffer2, u32 rb2Size, TransferOption rb2TransferOption, WaitOperation rb2WaitOperation,
-	u64 footer, u32 footerSize, TransferOption footerTransferOption
-);
 
 Result SPIWriteRead(CardType type, void* cmd, u32 cmdSize, void* answer, u32 answerSize, void* data, u32 dataSize);
 Result SPIWaitWriteEnd(CardType type);

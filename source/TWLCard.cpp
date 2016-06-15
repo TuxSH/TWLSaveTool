@@ -151,8 +151,6 @@ TWLCard::TWLCard(void) : twl(false), h(Header()), cardType_(NO_CHIP) {
 	h = Header(data);
 	delete[] data;
 	
-	if(h.gameTitle == "POKEDUN SORA") throw std::runtime_error("sorry, TWLSaveTool completely fucks up on this particular game");
-	
 	res = SPIGetCardType(&cardType_, (h.gameCode[0] == 'I') ? 1 : 0); // automatic infrared chip detection often fails
 	if(res != 0) { throw Error(res,__FILE__, __LINE__); }
 	
