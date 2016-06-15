@@ -150,7 +150,6 @@ TWLCard::TWLCard(void) : twl(false), h(Header()), cardType_(NO_CHIP) {
 	if(res != 0) { delete[] data; throw Error(res,__FILE__, __LINE__); }
 	h = Header(data);
 	delete[] data;
-	
 	res = SPIGetCardType(&cardType_, (h.gameCode[0] == 'I') ? 1 : 0); // automatic infrared chip detection often fails
 	if(res != 0) { throw Error(res,__FILE__, __LINE__); }
 	
