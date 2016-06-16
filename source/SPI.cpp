@@ -125,6 +125,11 @@ Result SPIWriteSaveData(CardType type, u32 offset, void* data, u32 size) {
 				break;
 			case EEPROM_8KB:
 			case EEPROM_64KB:
+				cmdSize = 3;
+				cmd[0] = SPI_EEPROM_CMD_WRITE;
+				cmd[1] = (u8)(pos >> 8);
+				cmd[2] = (u8) pos;
+				break;
 			case EEPROM_128KB:
 				cmdSize = 4;
 				cmd[0] = SPI_EEPROM_CMD_WRITE;
@@ -224,6 +229,10 @@ Result SPIReadSaveData(CardType type, u32 offset, void* data, u32 size) {
 			break;
 		case EEPROM_8KB:
 		case EEPROM_64KB:
+			cmdSize = 3;
+			cmd[1] = (u8)(pos >> 8);
+			cmd[2] = (u8) pos;
+			break;
 		case EEPROM_128KB:
 			cmdSize = 4;
 			cmd[1] = (u8)(pos >> 16);
