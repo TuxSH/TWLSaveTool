@@ -118,7 +118,7 @@ restart:
 	TWLCard* card = NULL;
 	consoleClear();
 
-	printf("\x1b[1m\x1b[0;12HTWLSaveTool 1.1 by TuxSH\x1B[0m\n\n\n");
+	printf("\x1b[1m\x1b[0;12HTWLSaveTool 1.2 by TuxSH\x1B[0m\n\n\n");
 
 	try { card = new TWLCard; }
 	HANDLE_INIT_ERRORS(true)
