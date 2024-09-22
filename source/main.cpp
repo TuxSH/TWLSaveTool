@@ -18,58 +18,27 @@
 
 #include <cstdio>
 #include <cstring>
+#include <3ds.h>
 
 extern "C"{
 #include <sys/stat.h>
 #include <unistd.h>
-#include <3ds/console.h>
 }
 
 #include "TWLCard.h"
 
-
-// Fix compile error. This should be properly initialized if you fiddle with the title stuff!
-u8 sysLang = 0;
-
-
-// Override the default service init/exit functions
-extern "C" {
-	void __appInit() {
-		// Initialize services
-		srvInit();
-		aptInit();
-		gfxInitDefault();
-		hidInit();
-		fsInit();
-		sdmcInit();
-		pxiDevInit();
-		consoleInit(GFX_TOP, NULL);
-	}
-
-	void __appExit() {
-		// Exit services
-		pxiDevExit();
-		sdmcExit();
-		fsExit();
-		hidExit();
-		gfxExit();
-		aptExit();
-		srvExit();
-	}
-}
-
 void updateProgressBar(u32 offset, u32 total) {
 	const int nbBars = 40;
 	std::string bar(nbBars*offset/total, '#');
-	
+
 	bar += std::string(nbBars - nbBars*offset/total, '-');
-	
+
 	printf("\r[%s]\t%d%%", bar.c_str(), (int)(100*offset/total));
-	
+
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 }
-	
+
 std::string sizeToStr(u32 sz) {
 	char buf[50];
 	if(sz < 1024)
@@ -77,7 +46,7 @@ std::string sizeToStr(u32 sz) {
 	else if(sz < (1 << 20))
 		sprintf(buf, "%lu KB", sz >> 10);
 	else sprintf(buf, "%lu MB", sz >> 20);
-	
+
 	return std::string(buf);
 }
 
@@ -108,32 +77,36 @@ catch(std::exception const& e){\
 }
 
 int main(void) {
+	pxiDevInit();
+	gfxInitDefault();
+	consoleInit(GFX_TOP, NULL);
+
 restart:
 	mkdir("sdmc:/TWLSaveTool", 0777);
 	chdir("sdmc:/TWLSaveTool");
-	
+
 	u8 fileNumber = 0;
 
 	bool once = false, error_occured = false;
 	TWLCard* card = NULL;
 	consoleClear();
 
-	printf("\x1b[1m\x1b[0;12HTWLSaveTool 1.2 by TuxSH\x1B[0m\n\n\n");
+	printf("\x1b[1m\x1b[0;12HTWLSaveTool 1.2.1 by TuxSH\x1B[0m\n\n\n");
 
 	try { card = new TWLCard; }
 	HANDLE_INIT_ERRORS(true)
-	
+
 	if(error_occured) goto main_loop;
-	
+
 	try {
-		if(card->isTWL()) {			
+		if(card->isTWL()) {
 			if(card->cardType() == NO_CHIP) {
 				delete card;
 				card = NULL;
 				printf("\x1B[31mUnsupported save file type. It is possible that this game doesn't store any save data.\x1B[0m\n");
 				error_occured = true;
 			}
-			
+
 			printf("Game title:\t\t\t%s\nGamecode:\t\t\t%s\n", card->cardHeader().gameTitle.c_str(), card->cardHeader().gameCode.c_str());
 			printf("Save file size:\t%s\n", sizeToStr(card->saveSize()).c_str());
 			if(card->cardType() >= FLASH_256KB_1)
@@ -143,7 +116,7 @@ restart:
 			printf("(LEFT/RIGHT)\tChange file name\n");
 			printf("Current save file name: %s", card->generateFileName(fileNumber).c_str());
 		}
-		
+
 		else {
 			delete card;
 			card = NULL;
@@ -152,18 +125,18 @@ restart:
 		}
 	}
 	HANDLE_INIT_ERRORS(false)
-	
-main_loop:	
+
+main_loop:
 	while(aptMainLoop()) {
 		hidScanInput();
-		auto keys = hidKeysDown(); 
-		
+		auto keys = hidKeysDown();
+
 		if(keys & KEY_START) break;
-		else if(keys & KEY_Y) {	
+		else if(keys & KEY_Y) {
 			gfxFlushBuffers();
 			gfxSwapBuffers();
 			gspWaitForVBlank();
-			delete card; 
+			delete card;
 			card = NULL;
 			goto restart;
 		}
@@ -173,15 +146,15 @@ main_loop:
 			printf("\rCurrent save file name: %s   ", card->generateFileName(fileNumber).c_str());
 			goto flush_buffers;
 		}
-		
-		if(!once) { 
+
+		if(!once) {
 			if(error_occured) goto end_error;
 
 			if (keys & (KEY_B | KEY_A | KEY_X)) {
 					std::string fileName = card->generateFileName(fileNumber);
 					FILE* f = NULL;
 					printf("\n\n\n");
-					
+
 					if(keys & KEY_B) {
 						try{
 							f = fopen(fileName.c_str(), "rb");
@@ -194,16 +167,16 @@ main_loop:
 									else if(hidKeysDown() & KEY_DOWN) goto end_error;
 								}
 							}
-							
+
 							printf("\nReading save file...\n\n");
 							card->backupSaveFile(fileName, &updateProgressBar);
 							printf("\n");
 						}
 						HANDLE_ERRORS()
 					}
-					
-					
-					
+
+
+
 					else if(keys & KEY_A) {
 						try{
 							f = fopen(fileName.c_str(), "rb");
@@ -214,19 +187,19 @@ main_loop:
 							fseek(f, 0, SEEK_END);
 							u32 sz = ftell(f);
 							fclose(f);
-							
+
 							if(sz != card->saveSize()){
 								printf("\x1B[31mError: incorrect file size\x1B[0m\n");
 								goto end_error;
 							}
-							
+
 							printf("\nWriting save file...\n\n");
 							card->restoreSaveFile(fileName, &updateProgressBar);
 							printf("\n");
 						}
 						HANDLE_ERRORS()
 					}
-					
+
 					else if(keys & KEY_X) {
 						try{
 							printf("\x1B[33mAre you REALLY sure you want to erase your save data?\n\n(UP) Yes\t\t(DOWN) No\x1B[0m\n");
@@ -241,25 +214,28 @@ main_loop:
 						}
 						HANDLE_ERRORS()
 					}
-					
+
 				end:
 					once = true;
 					printf("\nDone.\n");
 			}
-			else goto flush_buffers;	
+			else goto flush_buffers;
 		end_error:
 			once = true;
 			printf("Press START to exit, Y to restart.\n");
 		}
-			
-		
+
+
 flush_buffers:
 		gfxFlushBuffers();
 		gfxSwapBuffers();
 		gspWaitForVBlank();
 	}
-	
+
 	if(fill_buf != NULL) delete[] fill_buf;
 	delete card;
+
+	gfxExit();
+	pxiDevExit();
 	return 0;
 }
