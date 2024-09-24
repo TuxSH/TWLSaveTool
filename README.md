@@ -1,5 +1,9 @@
 # TWLSaveTool
 
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/TuxSH/TWLSaveTool/total)
+![License](https://img.shields.io/badge/License-GPLv2-blue.svg)
+
+
 **This project is no longer really maintained, beside compilation issue fixes. I created it 9 years ago, back in 2015, as my first major contribution to the 3DS scene, and its functionality has since then been replicated in other 3DS homebrew applications (with my permission): Checkpoint, PKSM, FBI, and GodMode9.**
 
 ## Description
